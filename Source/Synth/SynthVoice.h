@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "../DSP/Oscillator.h"
 #include "../DSP/Wavetable.h"
+#include "../DSP/Filter.h"
 
 namespace synth
 {
@@ -27,11 +28,17 @@ namespace synth
         int currentWave1Idx = -1;
         int currentWave2Idx = -1;
 
-        float currentFreq = 440.0f;
-        float velocityGain = 1.0f;
-        bool  isActive = false;
+        dsp::Filter filter;
 
-        juce::ADSR adsr;
-        juce::ADSR::Parameters adsrParams { 0.005f, 0.1f, 0.7f, 0.2f };
+        float currentFreq     = 440.0f;
+        float currentMidiNote = 60.0f;
+        float velocityGain    = 1.0f;
+        bool  isActive        = false;
+
+        juce::ADSR adsr;      // Amp envelope
+        juce::ADSR filtAdsr;  // Filter envelope
+
+        juce::ADSR::Parameters adsrParams     { 0.005f, 0.100f, 0.700f, 0.300f };
+        juce::ADSR::Parameters filtAdsrParams { 0.005f, 0.200f, 0.500f, 0.300f };
     };
 }
