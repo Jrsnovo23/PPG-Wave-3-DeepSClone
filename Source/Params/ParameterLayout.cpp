@@ -24,9 +24,22 @@ namespace Params
                 juce::AudioParameterFloatAttributes().withLabel (suffix)));
         };
 
+        auto makeFloatLog = [&] (const juce::String& id, const juce::String& name,
+                                 float lo, float hi, float def,
+                                 const juce::String& suffix = {})
+        {
+            juce::NormalisableRange<float> range (lo, hi);
+            range.setSkewForCentre (std::sqrt (lo * hi));
+            params.push_back (std::make_unique<juce::AudioParameterFloat>(
+                juce::ParameterID { id, 1 }, name, range, def,
+                juce::AudioParameterFloatAttributes().withLabel (suffix)));
+        };
+
         const juce::StringArray waveChoices { "Sine", "Triangle", "Saw", "Square" };
         const juce::StringArray octaveChoices { "-2", "-1", "0", "+1", "+2" };
+        const juce::StringArray filterTypes { "Low Pass", "High Pass", "Band Pass" };
 
+        // Osc 1
         makeChoice (ParamIDs::osc1Wave,   "Osc1 Wave",   waveChoices,   0);
         makeFloat  (ParamIDs::osc1Pos,    "Osc1 Pos",    0.0f, 1.0f, 0.0f);
         makeChoice (ParamIDs::osc1Octave, "Osc1 Octave", octaveChoices, 2);
@@ -34,6 +47,7 @@ namespace Params
         makeFloat  (ParamIDs::osc1Fine,   "Osc1 Fine", -100.0f, 100.0f, 0.0f, "ct");
         makeFloat  (ParamIDs::osc1Level,  "Osc1 Level",  0.0f, 1.0f, 0.8f);
 
+        // Osc 2
         makeChoice (ParamIDs::osc2Wave,   "Osc2 Wave",   waveChoices,   2);
         makeFloat  (ParamIDs::osc2Pos,    "Osc2 Pos",    0.0f, 1.0f, 0.0f);
         makeChoice (ParamIDs::osc2Octave, "Osc2 Octave", octaveChoices, 2);
@@ -41,12 +55,27 @@ namespace Params
         makeFloat  (ParamIDs::osc2Fine,   "Osc2 Fine", -100.0f, 100.0f, 0.0f, "ct");
         makeFloat  (ParamIDs::osc2Level,  "Osc2 Level",  0.0f, 1.0f, 0.0f);
 
+        // Amp Env
         makeFloat  (ParamIDs::ampAttack,  "Amp Attack",  0.001f, 5.0f, 0.005f, "s");
         makeFloat  (ParamIDs::ampDecay,   "Amp Decay",   0.001f, 5.0f, 0.100f, "s");
         makeFloat  (ParamIDs::ampSustain, "Amp Sustain", 0.0f,   1.0f, 0.700f);
         makeFloat  (ParamIDs::ampRelease, "Amp Release", 0.001f, 10.0f, 0.300f, "s");
 
-        makeFloat  (ParamIDs::masterGain, "Master",      0.0f, 1.0f, 0.7f);
+        // Filter
+        makeChoice   (ParamIDs::filterType,     "Filter Type",     filterTypes, 0);
+        makeFloatLog (ParamIDs::filterCutoff,   "Filter Cutoff",   20.0f, 20000.0f, 8000.0f, "Hz");
+        makeFloat    (ParamIDs::filterReso,     "Filter Reso",     0.0f, 1.0f, 0.0f);
+        makeFloat    (ParamIDs::filterEnvAmt,   "Filter Env Amt", -1.0f, 1.0f, 0.0f);
+        makeFloat    (ParamIDs::filterKeyTrack, "Filter Key Track", 0.0f, 1.0f, 0.0f);
+
+        // Filter Env
+        makeFloat  (ParamIDs::filtAttack,  "Filt Attack",  0.001f, 5.0f, 0.005f, "s");
+        makeFloat  (ParamIDs::filtDecay,   "Filt Decay",   0.001f, 5.0f, 0.200f, "s");
+        makeFloat  (ParamIDs::filtSustain, "Filt Sustain", 0.0f,   1.0f, 0.500f);
+        makeFloat  (ParamIDs::filtRelease, "Filt Release", 0.001f, 10.0f, 0.300f, "s");
+
+        // Master
+        makeFloat  (ParamIDs::masterGain, "Master", 0.0f, 1.0f, 0.7f);
 
         return { params.begin(), params.end() };
     }
