@@ -3,7 +3,7 @@
 
 // ==================== RotaryKnob ====================
 
-PPGWave3Editor::RotaryKnob::RotaryKnob (juce::AudioProcessorValueTreeState& apvts,
+PPGWave3Editor::RotaryKnob::RotaryKnob (juce::AudioProcessorValueTreeState& state,
                                         const juce::String& paramID,
                                         const juce::String& labelText)
 {
@@ -23,7 +23,7 @@ PPGWave3Editor::RotaryKnob::RotaryKnob (juce::AudioProcessorValueTreeState& apvt
     addAndMakeVisible (label);
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-        apvts, paramID, slider);
+        state, paramID, slider);
 }
 
 void PPGWave3Editor::RotaryKnob::resized()
@@ -39,9 +39,9 @@ void PPGWave3Editor::RotaryKnob::paint (juce::Graphics&) {}
 
 static const char* kWaveNames[4] = { "SIN", "TRI", "SAW", "SQR" };
 
-PPGWave3Editor::WaveSelector::WaveSelector (juce::AudioProcessorValueTreeState& apvts,
+PPGWave3Editor::WaveSelector::WaveSelector (juce::AudioProcessorValueTreeState& state,
                                             const juce::String& paramID)
-    : apvtsRef (apvts), id (paramID)
+    : apvtsRef (state), id (paramID)
 {
     for (int i = 0; i < 4; ++i)
     {
@@ -53,14 +53,19 @@ PPGWave3Editor::WaveSelector::WaveSelector (juce::AudioProcessorValueTreeState& 
         b->setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
         b->onClick = [this, i]()
         {
-            if (attachment) attachment->setValueAsCompleteGesture ((float) i);
+            if (attachment)
+                attachment->setValueAsCompleteGesture ((float) i);
         };
         addAndMakeVisible (b);
     }
 
     attachment = std::make_unique<juce::ParameterAttachment> (
         *apvtsRef.getParameter (id),
-        [this] (float newValue) { currentIndex = (int) newValue; refreshFromParameter(); });
+        [this] (float newValue)
+        {
+            currentIndex = (int) newValue;
+            refreshFromParameter();
+        });
     attachment->sendInitialUpdate();
 }
 
@@ -104,12 +109,18 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       ampR (p.apvts, ParamIDs::ampRelease, "RELEASE"),
       master (p.apvts, ParamIDs::masterGain, "MASTER")
 {
+    juce::ignoreUnused (processorRef, apvts);
+
     addAndMakeVisible (*osc1Wave);
     addAndMakeVisible (*osc2Wave);
-    for (auto* c : { (juce::Component*) &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
-                     (juce::Component*) &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
-                     (juce::Component*) &ampA, &ampD, &ampS, &ampR,
-                     (juce::Component*) &master })
+
+    std::initializer_list<juce::Component*> allKnobs {
+        &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
+        &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
+        &ampA, &ampD, &ampS, &ampR,
+        &master
+    };
+    for (auto* c : allKnobs)
         addAndMakeVisible (c);
 
     setResizable (true, true);
@@ -140,12 +151,14 @@ void PPGWave3Editor::paint (juce::Graphics& g)
 void PPGWave3Editor::drawSection (juce::Graphics& g, juce::Rectangle<int> area,
                                   const juce::String& title) const
 {
-    if (area.isEmpty()) return;
+    if (area.isEmpty())
+        return;
+
     g.setColour (juce::Colour (0xff2a2a2a));
     g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 4.0f, 1.0f);
     g.setColour (juce::Colour (0xffffaa00));
     g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    g.drawText (title, area.getX() + 10, area.getY() + 4, 200, 14,
+    g.drawText (title, area.getX() + 10, area.getY() + 4, 220, 14,
                 juce::Justification::centredLeft);
 }
 
@@ -165,10 +178,10 @@ void PPGWave3Editor::resized()
     envArea  = r;
 
     // --- Contenido de cada sección ---
-    auto layoutSection = [this] (juce::Rectangle<int> area,
-                                 WaveSelector& waveSel,
-                                 RotaryKnob& kPos, RotaryKnob& kOct, RotaryKnob& kSemi,
-                                 RotaryKnob& kFine, RotaryKnob& kLevel)
+    auto layoutSection = [] (juce::Rectangle<int> area,
+                             WaveSelector& waveSel,
+                             RotaryKnob& kPos, RotaryKnob& kOct, RotaryKnob& kSemi,
+                             RotaryKnob& kFine, RotaryKnob& kLevel)
     {
         auto inner = area.reduced (10);
         inner.removeFromTop (16);               // título
