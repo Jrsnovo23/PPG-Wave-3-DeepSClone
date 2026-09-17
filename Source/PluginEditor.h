@@ -12,19 +12,34 @@ public:
     void resized () override;
 
 private:
+    // --- Ventana de información por sección (muestra último parámetro tocado) ---
+    class InfoDisplay : public juce::Component
+    {
+    public:
+        void setInfo (const juce::String& name, const juce::String& value);
+        void paint (juce::Graphics&) override;
+
+    private:
+        juce::String paramName { "--" };
+        juce::String paramValue;
+    };
+
     // --- Perilla giratoria con etiqueta ---
     class RotaryKnob : public juce::Component
     {
     public:
         RotaryKnob (juce::AudioProcessorValueTreeState& apvts,
                     const juce::String& paramID,
-                    const juce::String& labelText);
+                    const juce::String& labelText,
+                    InfoDisplay* display);
         void resized() override;
         void paint   (juce::Graphics&) override;
 
     private:
         juce::Slider  slider;
         juce::Label   label;
+        InfoDisplay*  infoDisplay = nullptr;
+        juce::String  paramName;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
     };
 
@@ -54,6 +69,9 @@ private:
     PPGWave3Processor& processorRef;
     juce::AudioProcessorValueTreeState& apvts;
 
+    // Info displays (uno por sección)
+    InfoDisplay osc1Info, osc2Info, filterInfo, ampEnvInfo, filtEnvInfo, masterInfo;
+
     // Oscilador 1
     std::unique_ptr<ButtonSelector> osc1Wave;
     RotaryKnob osc1Pos, osc1Oct, osc1Semi, osc1Fine, osc1Level;
@@ -75,7 +93,6 @@ private:
     // Master
     RotaryKnob master;
 
-    // Áreas reservadas (calculadas en resized)
     juce::Rectangle<int> osc1Area, osc2Area, filterArea, ampEnvArea, filtEnvArea, masterArea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PPGWave3Editor)
