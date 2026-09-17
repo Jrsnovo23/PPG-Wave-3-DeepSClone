@@ -38,6 +38,7 @@ target_sources(PPGWave3Clone
         Source/Params/ParameterLayout.cpp
         Source/DSP/Wavetable.cpp
         Source/DSP/Oscillator.cpp
+        Source/DSP/Filter.cpp
         Source/Synth/SynthVoice.cpp
 )
 
