@@ -62,6 +62,13 @@ namespace synth
             return def;
         };
 
+        // Actualizar ADSR desde parámetros (barato: se hace una vez por bloque)
+        adsrParams.attack  = getF (ParamIDs::ampAttack,  0.005f);
+        adsrParams.decay   = getF (ParamIDs::ampDecay,   0.100f);
+        adsrParams.sustain = getF (ParamIDs::ampSustain, 0.700f);
+        adsrParams.release = getF (ParamIDs::ampRelease, 0.300f);
+        adsr.setParameters (adsrParams);
+
         const int w1 = getI (ParamIDs::osc1Wave, 0);
         const int w2 = getI (ParamIDs::osc2Wave, 2);
         if (w1 != currentWave1Idx) { wave1 = dsp::wavetables::makeByIndex (w1); currentWave1Idx = w1; }
