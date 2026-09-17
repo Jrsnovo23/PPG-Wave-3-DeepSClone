@@ -25,6 +25,19 @@ namespace ParamIDs
     inline constexpr auto ampSustain = "amp_sustain";
     inline constexpr auto ampRelease = "amp_release";
 
+    // Filter
+    inline constexpr auto filterType     = "filter_type";
+    inline constexpr auto filterCutoff   = "filter_cutoff";
+    inline constexpr auto filterReso     = "filter_reso";
+    inline constexpr auto filterEnvAmt   = "filter_env_amt";
+    inline constexpr auto filterKeyTrack = "filter_key_track";
+
+    // Filter Envelope
+    inline constexpr auto filtAttack  = "filt_attack";
+    inline constexpr auto filtDecay   = "filt_decay";
+    inline constexpr auto filtSustain = "filt_sustain";
+    inline constexpr auto filtRelease = "filt_release";
+
     // Master
     inline constexpr auto masterGain = "master_gain";
 }
