@@ -28,12 +28,13 @@ private:
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
     };
 
-    // --- Selector de onda con 4 botones ---
-    class WaveSelector : public juce::Component
+    // --- Selector con N botones (para ondas y para tipo de filtro) ---
+    class ButtonSelector : public juce::Component
     {
     public:
-        WaveSelector (juce::AudioProcessorValueTreeState& apvts,
-                      const juce::String& paramID);
+        ButtonSelector (juce::AudioProcessorValueTreeState& apvts,
+                        const juce::String& paramID,
+                        const juce::StringArray& names);
         void resized() override;
         void paint   (juce::Graphics&) override;
 
@@ -47,7 +48,6 @@ private:
         int currentIndex = 0;
     };
 
-    // --- Marco de sección con título ---
     void drawSection (juce::Graphics& g, juce::Rectangle<int> area,
                       const juce::String& title) const;
 
@@ -55,21 +55,28 @@ private:
     juce::AudioProcessorValueTreeState& apvts;
 
     // Oscilador 1
-    std::unique_ptr<WaveSelector> osc1Wave;
+    std::unique_ptr<ButtonSelector> osc1Wave;
     RotaryKnob osc1Pos, osc1Oct, osc1Semi, osc1Fine, osc1Level;
 
     // Oscilador 2
-    std::unique_ptr<WaveSelector> osc2Wave;
+    std::unique_ptr<ButtonSelector> osc2Wave;
     RotaryKnob osc2Pos, osc2Oct, osc2Semi, osc2Fine, osc2Level;
+
+    // Filtro
+    std::unique_ptr<ButtonSelector> filterType;
+    RotaryKnob filterCutoff, filterReso, filterEnvAmt, filterKeyTrack;
 
     // Amp Envelope
     RotaryKnob ampA, ampD, ampS, ampR;
+
+    // Filter Envelope
+    RotaryKnob filtA, filtD, filtS, filtR;
 
     // Master
     RotaryKnob master;
 
     // Áreas reservadas (calculadas en resized)
-    juce::Rectangle<int> osc1Area, osc2Area, envArea;
+    juce::Rectangle<int> osc1Area, osc2Area, filterArea, ampEnvArea, filtEnvArea, masterArea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PPGWave3Editor)
 };
