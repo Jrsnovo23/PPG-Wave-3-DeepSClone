@@ -41,6 +41,11 @@ namespace Params
         makeFloat  (ParamIDs::osc2Fine,   "Osc2 Fine", -100.0f, 100.0f, 0.0f, "ct");
         makeFloat  (ParamIDs::osc2Level,  "Osc2 Level",  0.0f, 1.0f, 0.0f);
 
+        makeFloat  (ParamIDs::ampAttack,  "Amp Attack",  0.001f, 5.0f, 0.005f, "s");
+        makeFloat  (ParamIDs::ampDecay,   "Amp Decay",   0.001f, 5.0f, 0.100f, "s");
+        makeFloat  (ParamIDs::ampSustain, "Amp Sustain", 0.0f,   1.0f, 0.700f);
+        makeFloat  (ParamIDs::ampRelease, "Amp Release", 0.001f, 10.0f, 0.300f, "s");
+
         makeFloat  (ParamIDs::masterGain, "Master",      0.0f, 1.0f, 0.7f);
 
         return { params.begin(), params.end() };
