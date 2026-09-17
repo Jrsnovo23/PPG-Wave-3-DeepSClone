@@ -19,6 +19,12 @@ namespace ParamIDs
     inline constexpr auto osc2Fine   = "osc2_fine";
     inline constexpr auto osc2Level  = "osc2_level";
 
+    // Amp Envelope
+    inline constexpr auto ampAttack  = "amp_attack";
+    inline constexpr auto ampDecay   = "amp_decay";
+    inline constexpr auto ampSustain = "amp_sustain";
+    inline constexpr auto ampRelease = "amp_release";
+
     // Master
     inline constexpr auto masterGain = "master_gain";
 }
