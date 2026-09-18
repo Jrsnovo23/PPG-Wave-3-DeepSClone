@@ -120,11 +120,11 @@ private:
 
     // LFO 1
     std::unique_ptr<ComboBoxSelector> lfo1Wave;
-    RotaryKnob lfo1Rate, lfo1Depth;
+    RotaryKnob lfo1Rate, lfo1Depth, lfo1Phase;
 
     // LFO 2
     std::unique_ptr<ComboBoxSelector> lfo2Wave;
-    RotaryKnob lfo2Rate, lfo2Depth;
+    RotaryKnob lfo2Rate, lfo2Depth, lfo2Phase;
 
     // Mod Matrix — 4 slots
     std::unique_ptr<ComboBoxSelector> mod1Src, mod1Dst;  RotaryKnob mod1Amt;
