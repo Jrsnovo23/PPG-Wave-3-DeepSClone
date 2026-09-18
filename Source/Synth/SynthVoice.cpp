@@ -18,6 +18,24 @@ namespace synth
         return dynamic_cast<SynthSound*> (s) != nullptr;
     }
 
+    float SynthVoice::syncIndexToBeats (int idx) noexcept
+    {
+        switch (idx)
+        {
+            case 1:  return 4.0f;              // 1/1
+            case 2:  return 2.0f;              // 1/2
+            case 3:  return 1.0f;              // 1/4
+            case 4:  return 0.5f;              // 1/8
+            case 5:  return 0.25f;             // 1/16
+            case 6:  return 1.0f * 2.0f/3.0f;  // 1/4T
+            case 7:  return 0.5f * 2.0f/3.0f;  // 1/8T
+            case 8:  return 0.25f * 2.0f/3.0f; // 1/16T
+            case 9:  return 1.5f;              // 1/4.
+            case 10: return 0.75f;             // 1/8.
+            default: return 0.0f;              // Free
+        }
+    }
+
     void SynthVoice::setCurrentPlaybackSampleRate (double newRate)
     {
         juce::SynthesiserVoice::setCurrentPlaybackSampleRate (newRate);
@@ -45,14 +63,13 @@ namespace synth
         osc1.reset (0.0f);
         osc2.reset (0.0f);
         filter.reset();
-        lfo1.reset (0.0f);   // retrigger de fase en cada nota
+        lfo1.reset (0.0f);
         lfo2.reset (0.0f);
         adsr.noteOn();
         filtAdsr.noteOn();
 
-        // Nuevo valor random por nota (para la fuente "Random" de la matriz)
         juce::Random r;
-        randomValue = r.nextFloat() * 2.0f - 1.0f;   // [-1, 1]
+        randomValue = r.nextFloat() * 2.0f - 1.0f;
 
         isActive = true;
     }
@@ -75,15 +92,14 @@ namespace synth
 
     void SynthVoice::pitchWheelMoved (int newValue)
     {
-        // 0..16383, centro en 8192 -> -1..1
         pitchBendValue = ((float) newValue - 8192.0f) / 8192.0f;
     }
 
     void SynthVoice::controllerMoved (int controllerNumber, int newValue)
     {
         const float v = (float) newValue / 127.0f;
-        if (controllerNumber == 1)   modWheelValue   = v;   // CC1
-        if (controllerNumber == 128) aftertouchValue = v;   // channel pressure
+        if (controllerNumber == 1)   modWheelValue   = v;
+        if (controllerNumber == 128) aftertouchValue = v;
     }
 
     void SynthVoice::renderNextBlock (juce::AudioBuffer<float>& output,
@@ -134,7 +150,6 @@ namespace synth
         const float fin1     = getF (ParamIDs::osc1Fine, 0.0f);
         const float fin2     = getF (ParamIDs::osc2Fine, 0.0f);
 
-        // Aplicamos pitch bend global (±2 semitonos)
         const float bendSemis = pitchBendValue * 2.0f;
 
         auto freqOf = [&] (int oct, float semis, float cents) noexcept
@@ -158,20 +173,33 @@ namespace synth
         const float keyTrackedCutoff = baseCutoff * std::pow (2.0f,
             fKeyTrack * (currentMidiNote - 60.0f) / 12.0f);
 
-        // ---------- LFOs ----------
+        // ---------- LFOs con Sync ----------
+        const double bpm = bpmSource ? bpmSource->load() : 120.0;
+        const double beatSec = 60.0 / juce::jmax (1.0, bpm);
+
+        auto computeLfoRate = [&] (const char* syncId, float freeRate) -> float
+        {
+            const int syncIdx = getI (syncId, 0);
+            if (syncIdx == 0) return freeRate;
+
+            const float beats = syncIndexToBeats (syncIdx);
+            if (beats <= 0.0f) return freeRate;
+            return (float) (1.0 / (beatSec * beats));
+        };
+
         const int   lfo1W = getI (ParamIDs::lfo1Wave,  0);
-        const float lfo1R = getF (ParamIDs::lfo1Rate,  1.0f);
+        const float lfo1R = computeLfoRate (ParamIDs::lfo1Sync, getF (ParamIDs::lfo1Rate, 1.0f));
         const float lfo1D = getF (ParamIDs::lfo1Depth, 0.0f);
         const float lfo1P = getF (ParamIDs::lfo1Phase, 0.0f);
         const int   lfo2W = getI (ParamIDs::lfo2Wave,  0);
-        const float lfo2R = getF (ParamIDs::lfo2Rate,  1.0f);
+        const float lfo2R = computeLfoRate (ParamIDs::lfo2Sync, getF (ParamIDs::lfo2Rate, 1.0f));
         const float lfo2D = getF (ParamIDs::lfo2Depth, 0.0f);
         const float lfo2P = getF (ParamIDs::lfo2Phase, 0.0f);
 
         const auto lfo1WaveEnum = (dsp::LFO::Wave) lfo1W;
         const auto lfo2WaveEnum = (dsp::LFO::Wave) lfo2W;
 
-        // ---------- Matriz de modulación ----------
+        // ---------- Matriz ----------
         ModSlot mods[4];
         mods[0] = { getI (ParamIDs::mod1Source, 0), getI (ParamIDs::mod1Dest, 0),
                     getF (ParamIDs::mod1Amount, 0.0f) };
@@ -192,15 +220,12 @@ namespace synth
             const float env     = adsr.getNextSample();
             const float filtEnv = filtAdsr.getNextSample();
 
-            // LFOs: valor actual * depth (con phase offset)
             const float lfo1Val = lfo1.getNextSample (lfo1WaveEnum, lfo1R, lfo1P) * lfo1D;
             const float lfo2Val = lfo2.getNextSample (lfo2WaveEnum, lfo2R, lfo2P) * lfo2D;
 
-            // Note Number normalizado (-1..1 aprox en 5 octavas alrededor de C3)
             const float noteNumberVal = juce::jlimit (-1.0f, 1.0f,
                 (currentMidiNote - 60.0f) / 60.0f);
 
-            // Acumuladores por destino
             float modPitch1 = 0.0f;
             float modPitch2 = 0.0f;
             float modWT1    = 0.0f;
@@ -215,15 +240,15 @@ namespace synth
                 float srcVal = 0.0f;
                 switch (m.source)
                 {
-                    case 1: srcVal = lfo1Val;         break;  // LFO 1
-                    case 2: srcVal = lfo2Val;         break;  // LFO 2
-                    case 3: srcVal = env;             break;  // Envelope 1 (Amp)
-                    case 4: srcVal = filtEnv;         break;  // Envelope 2 (Filt)
-                    case 5: srcVal = velocityGain;    break;  // Velocity
-                    case 6: srcVal = modWheelValue;   break;  // Mod Wheel
-                    case 7: srcVal = aftertouchValue; break;  // Aftertouch
-                    case 8: srcVal = noteNumberVal;   break;  // Note Number
-                    case 9: srcVal = randomValue;     break;  // Random
+                    case 1: srcVal = lfo1Val;         break;
+                    case 2: srcVal = lfo2Val;         break;
+                    case 3: srcVal = env;             break;
+                    case 4: srcVal = filtEnv;         break;
+                    case 5: srcVal = velocityGain;    break;
+                    case 6: srcVal = modWheelValue;   break;
+                    case 7: srcVal = aftertouchValue; break;
+                    case 8: srcVal = noteNumberVal;   break;
+                    case 9: srcVal = randomValue;     break;
                     default: break;
                 }
 
@@ -231,18 +256,17 @@ namespace synth
 
                 switch (m.dest)
                 {
-                    case 1: modPitch1 += v; break;   // OSC1 Pitch
-                    case 2: modPitch2 += v; break;   // OSC2 Pitch
-                    case 3: modWT1    += v; break;   // OSC1 Wave Pos
-                    case 4: modWT2    += v; break;   // OSC2 Wave Pos
-                    case 5: modCutoff += v; break;   // Filter Cutoff
-                    case 6: modAmp    += v; break;   // Amplifier
+                    case 1: modPitch1 += v; break;
+                    case 2: modPitch2 += v; break;
+                    case 3: modWT1    += v; break;
+                    case 4: modWT2    += v; break;
+                    case 5: modCutoff += v; break;
+                    case 6: modAmp    += v; break;
                     default: break;
                 }
             }
 
-            // Aplicar modulaciones a los valores base
-            const float f1   = baseF1 * std::pow (2.0f, modPitch1 * 2.0f);  // ±2 octavas
+            const float f1   = baseF1 * std::pow (2.0f, modPitch1 * 2.0f);
             const float f2   = baseF2 * std::pow (2.0f, modPitch2 * 2.0f);
             const float pos1 = juce::jlimit (0.0f, 1.0f, basePos1 + modWT1);
             const float pos2 = juce::jlimit (0.0f, 1.0f, basePos2 + modWT2);
@@ -252,11 +276,9 @@ namespace synth
                 const float envMod = std::pow (2.0f, fEnvAmt * filtEnv * 5.0f);
                 const float modMod = std::pow (2.0f, modCutoff * 5.0f);
                 filter.setCutoff (keyTrackedCutoff * envMod * modMod);
-
                 filter.setResonance (baseReso);
             }
 
-            // Generación de la muestra
             const float s1 = osc1.getNextSample (wave1, f1, pos1);
             const float s2 = osc2.getNextSample (wave2, f2, pos2);
             float mix = s1 * lvl1 + s2 * lvl2;
