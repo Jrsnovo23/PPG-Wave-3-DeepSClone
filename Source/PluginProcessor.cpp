@@ -3,6 +3,7 @@
 #include "Params/ParameterLayout.h"
 #include "Synth/SynthSound.h"
 #include "Synth/SynthVoice.h"
+#include "ParameterIDs.h"
 
 PPGWave3Processor::PPGWave3Processor()
     : AudioProcessor (BusesProperties()
@@ -10,14 +11,19 @@ PPGWave3Processor::PPGWave3Processor()
       apvts (*this, nullptr, "PARAMS", Params::createLayout())
 {
     for (int i = 0; i < 8; ++i)
-        synth.addVoice (new synth::SynthVoice (apvts));
+    {
+        auto* voice = new synth::SynthVoice (apvts);
+        voice->setBpmSource (&currentBpm);
+        synth.addVoice (voice);
+    }
 
     synth.addSound (new synth::SynthSound());
 }
 
-void PPGWave3Processor::prepareToPlay (double sampleRate, int)
+void PPGWave3Processor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     synth.setCurrentPlaybackSampleRate (sampleRate);
+    effects.prepare (sampleRate, samplesPerBlock, 2);
 }
 
 bool PPGWave3Processor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -31,7 +37,90 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
 {
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
+
+    // 1. Leer BPM del host
+    if (auto* ph = getPlayHead())
+    {
+        if (auto pos = ph->getPosition())
+        {
+            if (auto bpm = pos->getBpm())
+                currentBpm.store (*bpm);
+        }
+    }
+
+    // 2. Sintetizador
     synth.renderNextBlock (buffer, midi, 0, buffer.getNumSamples());
+
+    // 3. Efectos globales
+    auto getF = [&] (const char* id, float def) -> float
+    {
+        if (auto* p = apvts.getRawParameterValue (id)) return p->load();
+        return def;
+    };
+    auto getB = [&] (const char* id, bool def) -> bool
+    {
+        if (auto* p = apvts.getRawParameterValue (id)) return p->load() > 0.5f;
+        return def;
+    };
+    auto getI = [&] (const char* id, int def) -> int
+    {
+        if (auto* p = apvts.getRawParameterValue (id)) return (int) p->load();
+        return def;
+    };
+
+    // Chorus
+    effects.setChorus (getB (ParamIDs::chorusOn, false),
+                       getF (ParamIDs::chorusRate, 0.5f),
+                       getF (ParamIDs::chorusDepth, 0.25f),
+                       getF (ParamIDs::chorusMix, 0.5f));
+
+    // Delay con sync
+    {
+        const int syncIdx = getI (ParamIDs::delaySync, 0);
+        float delayTimeSec = getF (ParamIDs::delayTime, 0.3f);
+
+        if (syncIdx > 0)  // no es "Free"
+        {
+            const double bpm = currentBpm.load();
+            const double beatSec = 60.0 / juce::jmax (1.0, bpm);
+
+            // Divisiones: 1/1, 1/2, 1/4, 1/8, 1/16, 1/4T, 1/8T, 1/16T, 1/4., 1/8.
+            const double divisions[] = {
+                4.0,        // 1/1 (4 beats)
+                2.0,        // 1/2
+                1.0,        // 1/4
+                0.5,        // 1/8
+                0.25,       // 1/16
+                1.0 * 2.0/3.0,  // 1/4T
+                0.5 * 2.0/3.0,  // 1/8T
+                0.25 * 2.0/3.0, // 1/16T
+                1.5,        // 1/4.
+                0.75        // 1/8.
+            };
+            const int divIdx = juce::jlimit (0, 9, syncIdx - 1);
+            delayTimeSec = (float) (beatSec * divisions[divIdx]);
+        }
+
+        effects.setDelay (getB (ParamIDs::delayOn, false),
+                          delayTimeSec,
+                          getF (ParamIDs::delayFeedback, 0.4f),
+                          getF (ParamIDs::delayMix, 0.3f));
+    }
+
+    // Reverb
+    effects.setReverb (getB (ParamIDs::reverbOn, false),
+                       getF (ParamIDs::reverbSize, 0.6f),
+                       getF (ParamIDs::reverbDamp, 0.5f),
+                       getF (ParamIDs::reverbMix, 0.3f));
+
+    // Drive
+    effects.setDrive (getB (ParamIDs::driveOn, false),
+                      getF (ParamIDs::driveAmount, 3.0f),
+                      getF (ParamIDs::driveTone, 0.5f),
+                      getF (ParamIDs::driveMix, 0.5f));
+
+    // 4. Aplicar efectos
+    effects.process (buffer);
 }
 
 juce::AudioProcessorEditor* PPGWave3Processor::createEditor()
