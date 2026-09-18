@@ -152,6 +152,17 @@ PPGWave3Editor::ComboBoxSelector::ComboBoxSelector (juce::AudioProcessorValueTre
     label.setColour (juce::Label::textColourId, juce::Colour (0xffcccccc));
     addAndMakeVisible (label);
 
+    // PRIMERO poblamos el ComboBox con las opciones del AudioParameterChoice.
+    // El attachment por sí solo no agrega items; solo sincroniza el índice.
+    if (auto* param = state.getParameter (paramID))
+    {
+        if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
+        {
+            combo.addItemList (choice->choices, 1); // 1 = primer itemId
+        }
+    }
+
+    // AHORA creamos el attachment, que seleccionará el índice correcto.
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         state, paramID, combo);
 
@@ -217,9 +228,11 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       lfo1Wave (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo1Wave, "WAVE", &lfoInfo)),
       lfo1Rate  (p.apvts, ParamIDs::lfo1Rate,  "RATE",  &lfoInfo),
       lfo1Depth (p.apvts, ParamIDs::lfo1Depth, "DEPTH", &lfoInfo),
+      lfo1Phase (p.apvts, ParamIDs::lfo1Phase, "PHASE", &lfoInfo),
       lfo2Wave (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo2Wave, "WAVE", &lfoInfo)),
       lfo2Rate  (p.apvts, ParamIDs::lfo2Rate,  "RATE",  &lfoInfo),
       lfo2Depth (p.apvts, ParamIDs::lfo2Depth, "DEPTH", &lfoInfo),
+      lfo2Phase (p.apvts, ParamIDs::lfo2Phase, "PHASE", &lfoInfo),
       mod1Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod1Source, "SRC", &modInfo)),
       mod1Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod1Dest,   "DST", &modInfo)),
       mod1Amt (p.apvts, ParamIDs::mod1Amount, "AMT", &modInfo),
@@ -235,7 +248,7 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 {
     juce::ignoreUnused (processorRef, apvts);
 
-    // --- Selectores (listados uno por uno para evitar ambigüedad de tipos) ---
+    // --- Selectores (listados uno por uno) ---
     addAndMakeVisible (*osc1Wave);
     addAndMakeVisible (*osc2Wave);
     addAndMakeVisible (*filterType);
@@ -264,7 +277,8 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
         &ampA, &ampD, &ampS, &ampR,
         &filtA, &filtD, &filtS, &filtR,
         &master,
-        &lfo1Rate, &lfo1Depth, &lfo2Rate, &lfo2Depth,
+        &lfo1Rate, &lfo1Depth, &lfo1Phase,
+        &lfo2Rate, &lfo2Depth, &lfo2Phase,
         &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt
     };
     for (auto* c : allKnobs)
@@ -290,7 +304,8 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
                      &ampA, &ampD, &ampS, &ampR,
                      &filtA, &filtD, &filtS, &filtR,
                      &master,
-                     &lfo1Rate, &lfo1Depth, &lfo2Rate, &lfo2Depth,
+                     &lfo1Rate, &lfo1Depth, &lfo1Phase,
+                     &lfo2Rate, &lfo2Depth, &lfo2Phase,
                      &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt })
         k->setScale (scaleValue);
 
@@ -300,12 +315,12 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
                      &lfoInfo, &modInfo })
         d->setScale (scaleValue);
 
-    // ButtonSelectors (todos del mismo tipo)
+    // ButtonSelectors
     osc1Wave  ->setScale (scaleValue);
     osc2Wave  ->setScale (scaleValue);
     filterType->setScale (scaleValue);
 
-    // ComboBoxSelectors (todos del mismo tipo)
+    // ComboBoxSelectors
     lfo1Wave->setScale (scaleValue);
     lfo2Wave->setScale (scaleValue);
     mod1Src ->setScale (scaleValue);
@@ -327,7 +342,7 @@ void PPGWave3Editor::paint (juce::Graphics& g)
     g.fillRect (top);
     g.setColour (juce::Colour (0xffffaa00));
     g.setFont (juce::FontOptions (12.0f * currentScale, juce::Font::bold));
-    g.drawText ("PPG WAVE 3 CLONE   /   PHASE 4",
+    g.drawText ("PPG WAVE 3 CLONE   /   PHASE 4.1",
                 top.reduced (10, 0), juce::Justification::centredLeft);
 
     drawSection (g, osc1Area,    "OSCILLATOR 1");
@@ -444,7 +459,7 @@ void PPGWave3Editor::resized()
         filterKeyTrack.setBounds (inner.reduced (1, 0));
     }
 
-    // -------- LFO --------
+    // -------- LFO (con Phase) --------
     {
         auto inner = lfoArea.reduced (8);
         auto titleRow = inner.removeFromTop (
@@ -456,22 +471,24 @@ void PPGWave3Editor::resized()
         const int halfW = (inner.getWidth() - gap) / 2;
 
         auto layoutLFO = [&] (juce::Rectangle<int> area,
-                              ComboBoxSelector& w, RotaryKnob& rate, RotaryKnob& depth)
+                              ComboBoxSelector& w, RotaryKnob& rate,
+                              RotaryKnob& depth, RotaryKnob& phase)
         {
-            const int comboW = (int) ((float) area.getWidth() * 0.32f);
+            const int comboW = (int) ((float) area.getWidth() * 0.28f);
             w.setBounds (area.removeFromLeft (comboW).reduced (2, 0));
             area.removeFromLeft (2);
-            const int kw = area.getWidth() / 2;
+            const int kw = area.getWidth() / 3;
             rate .setBounds (area.removeFromLeft (kw).reduced (1, 0));
-            depth.setBounds (area.reduced (1, 0));
+            depth.setBounds (area.removeFromLeft (kw).reduced (1, 0));
+            phase.setBounds (area.reduced (1, 0));
         };
 
         auto lfo1Zone = inner.removeFromLeft (halfW);
         inner.removeFromLeft (gap);
         auto lfo2Zone = inner;
 
-        layoutLFO (lfo1Zone, *lfo1Wave, lfo1Rate, lfo1Depth);
-        layoutLFO (lfo2Zone, *lfo2Wave, lfo2Rate, lfo2Depth);
+        layoutLFO (lfo1Zone, *lfo1Wave, lfo1Rate, lfo1Depth, lfo1Phase);
+        layoutLFO (lfo2Zone, *lfo2Wave, lfo2Rate, lfo2Depth, lfo2Phase);
     }
 
     // -------- Mod Matrix --------
