@@ -12,7 +12,6 @@ public:
     void resized () override;
 
 private:
-    // ---------- InfoDisplay ----------
     class InfoDisplay : public juce::Component
     {
     public:
@@ -25,7 +24,6 @@ private:
         float scale = 1.0f;
     };
 
-    // ---------- RotaryKnob ----------
     class RotaryKnob : public juce::Component
     {
     public:
@@ -45,7 +43,23 @@ private:
         float         scale = 1.0f;
     };
 
-    // ---------- ButtonSelector ----------
+    // NUEVO: slider horizontal compacto para la columna AMT de la matriz
+    class HSlider : public juce::Component
+    {
+    public:
+        HSlider (juce::AudioProcessorValueTreeState& apvts,
+                 const juce::String& paramID,
+                 InfoDisplay* display);
+        void resized() override;
+        void paint   (juce::Graphics&) override;
+        void setScale (float s);
+    private:
+        juce::Slider  slider;
+        InfoDisplay*  infoDisplay = nullptr;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
+        float         scale = 1.0f;
+    };
+
     class ButtonSelector : public juce::Component
     {
     public:
@@ -65,7 +79,6 @@ private:
         float scale = 1.0f;
     };
 
-    // ---------- ComboBoxSelector ----------
     class ComboBoxSelector : public juce::Component
     {
     public:
@@ -85,7 +98,25 @@ private:
         float          scale = 1.0f;
     };
 
-    // ---------- Helpers ----------
+    // NUEVO: ToggleButton (para los "On" de efectos)
+    class ToggleButton : public juce::Component
+    {
+    public:
+        ToggleButton (juce::AudioProcessorValueTreeState& apvts,
+                      const juce::String& paramID,
+                      const juce::String& labelText,
+                      InfoDisplay* display);
+        void resized() override;
+        void paint   (juce::Graphics&) override;
+        void setScale (float s);
+    private:
+        juce::TextButton button;
+        InfoDisplay*     infoDisplay = nullptr;
+        juce::String     paramName;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> attachment;
+        float            scale = 1.0f;
+    };
+
     void  drawSection (juce::Graphics& g, juce::Rectangle<int> area,
                        const juce::String& title) const;
     float computeScale() const;
@@ -94,10 +125,10 @@ private:
     PPGWave3Processor& processorRef;
     juce::AudioProcessorValueTreeState& apvts;
 
-    // Info displays (uno por sección, ahora 8)
+    // Info displays (ahora 9: uno por sección + efectos)
     InfoDisplay osc1Info, osc2Info, filterInfo;
     InfoDisplay ampEnvInfo, filtEnvInfo, masterInfo;
-    InfoDisplay lfoInfo, modInfo;
+    InfoDisplay lfoInfo, modInfo, fxInfo;
 
     // Osciladores
     std::unique_ptr<ButtonSelector> osc1Wave;
@@ -109,10 +140,8 @@ private:
     std::unique_ptr<ButtonSelector> filterType;
     RotaryKnob filterCutoff, filterReso, filterEnvAmt, filterKeyTrack;
 
-    // Amp Env
+    // Envelopes
     RotaryKnob ampA, ampD, ampS, ampR;
-
-    // Filter Env
     RotaryKnob filtA, filtD, filtS, filtR;
 
     // Master
@@ -121,20 +150,39 @@ private:
     // LFO 1
     std::unique_ptr<ComboBoxSelector> lfo1Wave;
     RotaryKnob lfo1Rate, lfo1Depth, lfo1Phase;
+    std::unique_ptr<ComboBoxSelector> lfo1Sync;
 
     // LFO 2
     std::unique_ptr<ComboBoxSelector> lfo2Wave;
     RotaryKnob lfo2Rate, lfo2Depth, lfo2Phase;
+    std::unique_ptr<ComboBoxSelector> lfo2Sync;
 
-    // Mod Matrix — 4 slots
-    std::unique_ptr<ComboBoxSelector> mod1Src, mod1Dst;  RotaryKnob mod1Amt;
-    std::unique_ptr<ComboBoxSelector> mod2Src, mod2Dst;  RotaryKnob mod2Amt;
-    std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  RotaryKnob mod3Amt;
-    std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  RotaryKnob mod4Amt;
+    // Mod Matrix — 4 slots (ahora con HSlider para AMT)
+    std::unique_ptr<ComboBoxSelector> mod1Src, mod1Dst;  HSlider mod1Amt;
+    std::unique_ptr<ComboBoxSelector> mod2Src, mod2Dst;  HSlider mod2Amt;
+    std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  HSlider mod3Amt;
+    std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  HSlider mod4Amt;
+
+    // FX: Drive
+    std::unique_ptr<ToggleButton> driveOn;
+    RotaryKnob driveAmount, driveTone, driveMix;
+
+    // FX: Chorus
+    std::unique_ptr<ToggleButton> chorusOn;
+    RotaryKnob chorusRate, chorusDepth, chorusMix;
+
+    // FX: Delay
+    std::unique_ptr<ToggleButton> delayOn;
+    std::unique_ptr<ComboBoxSelector> delaySync;
+    RotaryKnob delayTime, delayFeedback, delayMix;
+
+    // FX: Reverb
+    std::unique_ptr<ToggleButton> reverbOn;
+    RotaryKnob reverbSize, reverbDamp, reverbMix;
 
     // Áreas
     juce::Rectangle<int> osc1Area, osc2Area, filterArea;
-    juce::Rectangle<int> lfoArea, modArea;
+    juce::Rectangle<int> lfoArea, modArea, fxArea;
     juce::Rectangle<int> ampEnvArea, filtEnvArea, masterArea;
 
     float currentScale = 1.0f;
