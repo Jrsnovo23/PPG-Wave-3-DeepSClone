@@ -18,10 +18,10 @@ void PPGWave3Editor::InfoDisplay::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xffffaa00));
     g.drawRoundedRectangle (r.reduced (0.5f), 3.0f, 1.0f);
 
-    auto textArea = getLocalBounds().reduced (5, 1);
+    auto textArea = getLocalBounds().reduced (juce::roundToInt (5 * scale), 1);
     g.setColour (juce::Colour (0xffffcc55));
     g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(),
-                                  9.5f, juce::Font::plain));
+                                  juce::jmax (7.0f, 9.5f * scale), juce::Font::plain));
 
     if (paramValue.isEmpty())
     {
@@ -60,17 +60,24 @@ PPGWave3Editor::RotaryKnob::RotaryKnob (juce::AudioProcessorValueTreeState& stat
     label.setText (labelText, juce::dontSendNotification);
     label.setJustificationType (juce::Justification::centred);
     label.setColour (juce::Label::textColourId, juce::Colour (0xffcccccc));
-    label.setFont (juce::FontOptions (9.5f));
     addAndMakeVisible (label);
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         state, paramID, slider);
 }
 
+void PPGWave3Editor::RotaryKnob::setScale (float s)
+{
+    scale = s;
+    label.setFont (juce::FontOptions (juce::jmax (7.0f, 9.0f * scale)));
+    resized();
+}
+
 void PPGWave3Editor::RotaryKnob::resized()
 {
     auto r = getLocalBounds();
-    label.setBounds (r.removeFromTop (11));
+    const int labelH = juce::jmax (9, juce::roundToInt (11 * scale));
+    label.setBounds (r.removeFromTop (labelH));
     slider.setBounds (r.reduced (2, 0));
 }
 
@@ -125,6 +132,52 @@ void PPGWave3Editor::ButtonSelector::resized()
 
 void PPGWave3Editor::ButtonSelector::paint (juce::Graphics&) {}
 
+// ==================== ComboBoxSelector ====================
+
+PPGWave3Editor::ComboBoxSelector::ComboBoxSelector (juce::AudioProcessorValueTreeState& state,
+                                                    const juce::String& paramID,
+                                                    const juce::String& labelText,
+                                                    InfoDisplay* display)
+    : infoDisplay (display), paramName (labelText)
+{
+    combo.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff2a2a2a));
+    combo.setColour (juce::ComboBox::textColourId,       juce::Colour (0xffffcc55));
+    combo.setColour (juce::ComboBox::outlineColourId,    juce::Colour (0xff555555));
+    combo.setColour (juce::ComboBox::arrowColourId,      juce::Colour (0xffffaa00));
+    addAndMakeVisible (combo);
+
+    label.setText (labelText, juce::dontSendNotification);
+    label.setJustificationType (juce::Justification::centredLeft);
+    label.setColour (juce::Label::textColourId, juce::Colour (0xffcccccc));
+    addAndMakeVisible (label);
+
+    attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        state, paramID, combo);
+
+    combo.onChange = [this]()
+    {
+        if (infoDisplay != nullptr)
+            infoDisplay->setInfo (paramName, combo.getText());
+    };
+}
+
+void PPGWave3Editor::ComboBoxSelector::setScale (float s)
+{
+    scale = s;
+    label.setFont (juce::FontOptions (juce::jmax (7.0f, 9.0f * scale)));
+    resized();
+}
+
+void PPGWave3Editor::ComboBoxSelector::resized()
+{
+    auto r = getLocalBounds();
+    const int labelH = juce::jmax (9, juce::roundToInt (11 * scale));
+    label.setBounds (r.removeFromTop (labelH));
+    combo.setBounds (r);
+}
+
+void PPGWave3Editor::ComboBoxSelector::paint (juce::Graphics&) {}
+
 // ==================== Editor ====================
 
 PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
@@ -159,51 +212,113 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       filtD (p.apvts, ParamIDs::filtDecay,   "D", &filtEnvInfo),
       filtS (p.apvts, ParamIDs::filtSustain, "S", &filtEnvInfo),
       filtR (p.apvts, ParamIDs::filtRelease, "R", &filtEnvInfo),
-      master (p.apvts, ParamIDs::masterGain, "MASTER", &masterInfo)
+      master (p.apvts, ParamIDs::masterGain, "MASTER", &masterInfo),
+      // LFO 1
+      lfo1Wave (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo1Wave, "WAVE", &lfoInfo)),
+      lfo1Rate  (p.apvts, ParamIDs::lfo1Rate,  "RATE",  &lfoInfo),
+      lfo1Depth (p.apvts, ParamIDs::lfo1Depth, "DEPTH", &lfoInfo),
+      // LFO 2
+      lfo2Wave (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo2Wave, "WAVE", &lfoInfo)),
+      lfo2Rate  (p.apvts, ParamIDs::lfo2Rate,  "RATE",  &lfoInfo),
+      lfo2Depth (p.apvts, ParamIDs::lfo2Depth, "DEPTH", &lfoInfo),
+      // Mod 1
+      mod1Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod1Source, "SRC", &modInfo)),
+      mod1Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod1Dest,   "DST", &modInfo)),
+      mod1Amt (p.apvts, ParamIDs::mod1Amount, "AMT", &modInfo),
+      // Mod 2
+      mod2Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod2Source, "SRC", &modInfo)),
+      mod2Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod2Dest,   "DST", &modInfo)),
+      mod2Amt (p.apvts, ParamIDs::mod2Amount, "AMT", &modInfo),
+      // Mod 3
+      mod3Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod3Source, "SRC", &modInfo)),
+      mod3Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod3Dest,   "DST", &modInfo)),
+      mod3Amt (p.apvts, ParamIDs::mod3Amount, "AMT", &modInfo),
+      // Mod 4
+      mod4Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod4Source, "SRC", &modInfo)),
+      mod4Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod4Dest,   "DST", &modInfo)),
+      mod4Amt (p.apvts, ParamIDs::mod4Amount, "AMT", &modInfo)
 {
     juce::ignoreUnused (processorRef, apvts);
 
-    addAndMakeVisible (*osc1Wave);
-    addAndMakeVisible (*osc2Wave);
-    addAndMakeVisible (*filterType);
+    // --- Selectores ---
+    for (auto* s : { osc1Wave.get(), osc2Wave.get(), filterType.get(),
+                     lfo1Wave.get(), lfo2Wave.get(),
+                     mod1Src.get(), mod1Dst.get(), mod2Src.get(), mod2Dst.get(),
+                     mod3Src.get(), mod3Dst.get(), mod4Src.get(), mod4Dst.get() })
+        addAndMakeVisible (s);
 
-    // Info displays
+    // --- Info displays ---
     for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
-                     &ampEnvInfo, &filtEnvInfo, &masterInfo })
+                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
+                     &lfoInfo, &modInfo })
         addAndMakeVisible (d);
 
-    // Perillas
+    // --- Perillas ---
     std::initializer_list<juce::Component*> allKnobs {
         &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
         &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
         &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
         &ampA, &ampD, &ampS, &ampR,
         &filtA, &filtD, &filtS, &filtR,
-        &master
+        &master,
+        &lfo1Rate, &lfo1Depth, &lfo2Rate, &lfo2Depth,
+        &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt
     };
     for (auto* c : allKnobs)
         addAndMakeVisible (c);
 
     setResizable (true, true);
-    setResizeLimits (500, 340, 1200, 800);
-    setSize (640, 460);
+    setResizeLimits (700, 620, 1400, 1260);
+    setSize (860, 720);
+}
+
+float PPGWave3Editor::computeScale() const
+{
+    const float refH = 720.0f;
+    return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
+}
+
+void PPGWave3Editor::applyScaleToAll (float s)
+{
+    for (auto* k : { &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
+                     &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
+                     &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
+                     &ampA, &ampD, &ampS, &ampR,
+                     &filtA, &filtD, &filtS, &filtR,
+                     &master,
+                     &lfo1Rate, &lfo1Depth, &lfo2Rate, &lfo2Depth,
+                     &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt })
+        k->setScale (s);
+
+    for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
+                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
+                     &lfoInfo, &modInfo })
+        d->setScale (s);
+
+    for (auto* s : { osc1Wave.get(), osc2Wave.get(), filterType.get(),
+                     lfo1Wave.get(), lfo2Wave.get(),
+                     mod1Src.get(), mod1Dst.get(), mod2Src.get(), mod2Dst.get(),
+                     mod3Src.get(), mod3Dst.get(), mod4Src.get(), mod4Dst.get() })
+        s->setScale (s);
 }
 
 void PPGWave3Editor::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour (0xff151515));
 
-    auto top = getLocalBounds().removeFromTop (22);
+    auto top = getLocalBounds().removeFromTop (24);
     g.setColour (juce::Colour (0xff0a0a0a));
     g.fillRect (top);
     g.setColour (juce::Colour (0xffffaa00));
-    g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
-    g.drawText ("PPG WAVE 3 CLONE   /   PHASE 3",
+    g.setFont (juce::FontOptions (12.0f * currentScale, juce::Font::bold));
+    g.drawText ("PPG WAVE 3 CLONE   /   PHASE 4",
                 top.reduced (10, 0), juce::Justification::centredLeft);
 
     drawSection (g, osc1Area,    "OSCILLATOR 1");
     drawSection (g, osc2Area,    "OSCILLATOR 2");
     drawSection (g, filterArea,  "FILTER");
+    drawSection (g, lfoArea,     "LFO");
+    drawSection (g, modArea,     "MOD MATRIX");
     drawSection (g, ampEnvArea,  "AMP ENV");
     drawSection (g, filtEnvArea, "FILTER ENV");
     drawSection (g, masterArea,  "MASTER");
@@ -216,59 +331,68 @@ void PPGWave3Editor::drawSection (juce::Graphics& g, juce::Rectangle<int> area,
     g.setColour (juce::Colour (0xff2a2a2a));
     g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 4.0f, 1.0f);
     g.setColour (juce::Colour (0xffffaa00));
-    g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+    g.setFont (juce::FontOptions (10.0f * currentScale, juce::Font::bold));
     g.drawText (title, area.getX() + 8, area.getY() + 3, 200, 12,
                 juce::Justification::centredLeft);
 }
 
 void PPGWave3Editor::resized()
 {
+    currentScale = computeScale();
+    applyScaleToAll (currentScale);
+
     auto r = getLocalBounds();
-    r.removeFromTop (26);
+    r.removeFromTop (24);
     r.reduce (6, 6);
 
-    const int h = r.getHeight();
-    const int gap = 5;
-    const int oscH  = (int) ((h - 3 * gap) * 0.21f);
-    const int filtH = (int) ((h - 3 * gap) * 0.21f);
-    const int envH  = h - 2 * oscH - filtH - 3 * gap;
+    const int h    = r.getHeight();
+    const int gap  = 6;
+    const int availH = h - 5 * gap;
 
-    osc1Area = r.removeFromTop (oscH);
-    r.removeFromTop (gap);
-    osc2Area = r.removeFromTop (oscH);
-    r.removeFromTop (gap);
-    filterArea = r.removeFromTop (filtH);
-    r.removeFromTop (gap);
+    // Distribución vertical de las 6 filas
+    const int oscH  = (int) (availH * 0.1407f);
+    const int filtH = (int) (availH * 0.1407f);
+    const int lfoH  = (int) (availH * 0.1529f);
+    const int modH  = (int) (availH * 0.2370f);
+    const int envH  = availH - 2 * oscH - filtH - lfoH - modH;
+
+    osc1Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
+    osc2Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
+    filterArea = r.removeFromTop (filtH);       r.removeFromTop (gap);
+    lfoArea = r.removeFromTop (lfoH);           r.removeFromTop (gap);
+    modArea = r.removeFromTop (modH);           r.removeFromTop (gap);
 
     auto bottomRow = r.removeFromTop (envH);
-    const int totalW = bottomRow.getWidth();
-    const int masterW = (int) (totalW * 0.14f);
-    const int envW = (totalW - masterW - 2 * gap) / 2;
-    ampEnvArea  = bottomRow.removeFromLeft (envW);
-    bottomRow.removeFromLeft (gap);
-    filtEnvArea = bottomRow.removeFromLeft (envW);
-    bottomRow.removeFromLeft (gap);
-    masterArea  = bottomRow;
+    {
+        const int totalW  = bottomRow.getWidth();
+        const int masterW = (int) (totalW * 0.14f);
+        const int envW    = (totalW - masterW - 2 * gap) / 2;
+        ampEnvArea  = bottomRow.removeFromLeft (envW);
+        bottomRow.removeFromLeft (gap);
+        filtEnvArea = bottomRow.removeFromLeft (envW);
+        bottomRow.removeFromLeft (gap);
+        masterArea  = bottomRow;
+    }
 
-    // --- Sección de oscilador: info display + selector proporcional + 5 perillas ---
-    auto layoutOscSection = [] (juce::Rectangle<int> area,
-                                InfoDisplay& info,
-                                ButtonSelector& waveSel,
-                                RotaryKnob& kPos, RotaryKnob& kOct, RotaryKnob& kSemi,
-                                RotaryKnob& kFine, RotaryKnob& kLevel)
+    // -------- Helper: info display width proporcional --------
+    auto infoWidthFor = [] (int sectionW)
+    {
+        return juce::jlimit (90, 260, (int) (sectionW * 0.22f));
+    };
+
+    // -------- Osciladores --------
+    auto layoutOscSection = [&] (juce::Rectangle<int> area,
+                                 InfoDisplay& info, ButtonSelector& waveSel,
+                                 RotaryKnob& kPos, RotaryKnob& kOct, RotaryKnob& kSemi,
+                                 RotaryKnob& kFine, RotaryKnob& kLevel)
     {
         auto inner = area.reduced (8);
-
-        // Fila superior: info display alineado a la derecha
-        auto titleRow = inner.removeFromTop (15);
-        info.setBounds (titleRow.removeFromRight (155).reduced (0, 1));
-
+        auto titleRow = inner.removeFromTop (juce::jmax (14, juce::roundToInt (15 * currentScale)));
+        info.setBounds (titleRow.removeFromRight (infoWidthFor (area.getWidth())).reduced (0, 1));
         inner.removeFromTop (1);
 
-        // Selector de onda: 30% del ancho disponible (ahora escala horizontalmente)
         const int selW = (int) (inner.getWidth() * 0.30f);
-        auto selZone = inner.removeFromLeft (selW).reduced (2, 3);
-        waveSel.setBounds (selZone);
+        waveSel.setBounds (inner.removeFromLeft (selW).reduced (2, 3));
 
         inner.removeFromLeft (4);
         const int kw = inner.getWidth() / 5;
@@ -284,18 +408,15 @@ void PPGWave3Editor::resized()
     layoutOscSection (osc2Area, osc2Info, *osc2Wave,
                       osc2Pos, osc2Oct, osc2Semi, osc2Fine, osc2Level);
 
-    // --- Filtro: info display + 3 botones tipo + 4 perillas ---
+    // -------- Filtro --------
     {
         auto inner = filterArea.reduced (8);
-        auto titleRow = inner.removeFromTop (15);
-        filterInfo.setBounds (titleRow.removeFromRight (155).reduced (0, 1));
-
+        auto titleRow = inner.removeFromTop (juce::jmax (14, juce::roundToInt (15 * currentScale)));
+        filterInfo.setBounds (titleRow.removeFromRight (infoWidthFor (filterArea.getWidth())).reduced (0, 1));
         inner.removeFromTop (1);
 
         const int selW = (int) (inner.getWidth() * 0.22f);
-        auto selZone = inner.removeFromLeft (selW).reduced (2, 3);
-        filterType->setBounds (selZone);
-
+        filterType->setBounds (inner.removeFromLeft (selW).reduced (2, 3));
         inner.removeFromLeft (4);
         const int kw = inner.getWidth() / 4;
         filterCutoff  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
@@ -304,12 +425,64 @@ void PPGWave3Editor::resized()
         filterKeyTrack.setBounds (inner.reduced (1, 0));
     }
 
-    // --- AMP ENV ---
+    // -------- LFO (dos sub-paneles) --------
+    {
+        auto inner = lfoArea.reduced (8);
+        auto titleRow = inner.removeFromTop (juce::jmax (14, juce::roundToInt (15 * currentScale)));
+        lfoInfo.setBounds (titleRow.removeFromRight (infoWidthFor (lfoArea.getWidth())).reduced (0, 1));
+        inner.removeFromTop (1);
+
+        const int halfW = (inner.getWidth() - gap) / 2;
+
+        auto layoutLFO = [&] (juce::Rectangle<int> area,
+                              ComboBoxSelector& w, RotaryKnob& rate, RotaryKnob& depth)
+        {
+            const int comboW = (int) (area.getWidth() * 0.32f);
+            w.setBounds (area.removeFromLeft (comboW).reduced (2, 0));
+            area.removeFromLeft (2);
+            const int kw = area.getWidth() / 2;
+            rate .setBounds (area.removeFromLeft (kw).reduced (1, 0));
+            depth.setBounds (area.reduced (1, 0));
+        };
+
+        auto lfo1Zone = inner.removeFromLeft (halfW);
+        inner.removeFromLeft (gap);
+        auto lfo2Zone = inner;
+
+        layoutLFO (lfo1Zone, *lfo1Wave, lfo1Rate, lfo1Depth);
+        layoutLFO (lfo2Zone, *lfo2Wave, lfo2Rate, lfo2Depth);
+    }
+
+    // -------- Mod Matrix (4 filas) --------
+    {
+        auto inner = modArea.reduced (8);
+        auto titleRow = inner.removeFromTop (juce::jmax (14, juce::roundToInt (15 * currentScale)));
+        modInfo.setBounds (titleRow.removeFromRight (infoWidthFor (modArea.getWidth())).reduced (0, 1));
+        inner.removeFromTop (1);
+
+        const int rowH = inner.getHeight() / 4;
+
+        auto layoutRow = [&] (juce::Rectangle<int> row,
+                              ComboBoxSelector& src, ComboBoxSelector& dst, RotaryKnob& amt)
+        {
+            const int srcW = (int) (row.getWidth() * 0.40f);
+            const int dstW = (int) (row.getWidth() * 0.40f);
+            src.setBounds (row.removeFromLeft (srcW).reduced (2, 1));
+            dst.setBounds (row.removeFromLeft (dstW).reduced (2, 1));
+            amt.setBounds (row.reduced (2, 1));
+        };
+
+        layoutRow (inner.removeFromTop (rowH), *mod1Src, *mod1Dst, mod1Amt);
+        layoutRow (inner.removeFromTop (rowH), *mod2Src, *mod2Dst, mod2Amt);
+        layoutRow (inner.removeFromTop (rowH), *mod3Src, *mod3Dst, mod3Amt);
+        layoutRow (inner,                        *mod4Src, *mod4Dst, mod4Amt);
+    }
+
+    // -------- Amp Env --------
     {
         auto inner = ampEnvArea.reduced (8);
-        auto titleRow = inner.removeFromTop (15);
-        ampEnvInfo.setBounds (titleRow.removeFromRight (155).reduced (0, 1));
-
+        auto titleRow = inner.removeFromTop (juce::jmax (14, juce::roundToInt (15 * currentScale)));
+        ampEnvInfo.setBounds (titleRow.removeFromRight (infoWidthFor (ampEnvArea.getWidth())).reduced (0, 1));
         inner.removeFromTop (1);
         const int kw = inner.getWidth() / 4;
         ampA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
@@ -318,12 +491,11 @@ void PPGWave3Editor::resized()
         ampR.setBounds (inner.reduced (1, 0));
     }
 
-    // --- FILTER ENV ---
+    // -------- Filter Env --------
     {
         auto inner = filtEnvArea.reduced (8);
-        auto titleRow = inner.removeFromTop (15);
-        filtEnvInfo.setBounds (titleRow.removeFromRight (155).reduced (0, 1));
-
+        auto titleRow = inner.removeFromTop (juce::jmax (14, juce::roundToInt (15 * currentScale)));
+        filtEnvInfo.setBounds (titleRow.removeFromRight (infoWidthFor (filtEnvArea.getWidth())).reduced (0, 1));
         inner.removeFromTop (1);
         const int kw = inner.getWidth() / 4;
         filtA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
@@ -332,13 +504,14 @@ void PPGWave3Editor::resized()
         filtR.setBounds (inner.reduced (1, 0));
     }
 
-    // --- MASTER ---
+    // -------- Master --------
     {
         auto inner = masterArea.reduced (8);
-        auto titleRow = inner.removeFromTop (15);
+        auto titleRow = inner.removeFromTop (juce::jmax (14, juce::roundToInt (15 * currentScale)));
         masterInfo.setBounds (titleRow.reduced (0, 1));
-
         inner.removeFromTop (1);
         master.setBounds (inner.reduced (2, 0));
     }
+
+    repaint();
 }
