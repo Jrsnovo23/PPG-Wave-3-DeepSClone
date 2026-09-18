@@ -48,6 +48,11 @@ namespace synth
         lfo2.reset (0.0f);
         adsr.noteOn();
         filtAdsr.noteOn();
+
+        // Nuevo valor random por nota (para la fuente "Random" de la matriz)
+        juce::Random r;
+        randomValue = r.nextFloat() * 2.0f - 1.0f;   // [-1, 1]
+
         isActive = true;
     }
 
@@ -76,8 +81,8 @@ namespace synth
     void SynthVoice::controllerMoved (int controllerNumber, int newValue)
     {
         const float v = (float) newValue / 127.0f;
-        if (controllerNumber == 1)   modWheelValue = v;   // CC1
-        if (controllerNumber == 128) aftertouchValue = v; // canal pressure (si el host lo envía)
+        if (controllerNumber == 1)   modWheelValue   = v;   // CC1
+        if (controllerNumber == 128) aftertouchValue = v;   // channel pressure
     }
 
     void SynthVoice::renderNextBlock (juce::AudioBuffer<float>& output,
@@ -156,9 +161,11 @@ namespace synth
         const int   lfo1W = getI (ParamIDs::lfo1Wave,  0);
         const float lfo1R = getF (ParamIDs::lfo1Rate,  1.0f);
         const float lfo1D = getF (ParamIDs::lfo1Depth, 0.0f);
+        const float lfo1P = getF (ParamIDs::lfo1Phase, 0.0f);
         const int   lfo2W = getI (ParamIDs::lfo2Wave,  0);
         const float lfo2R = getF (ParamIDs::lfo2Rate,  1.0f);
         const float lfo2D = getF (ParamIDs::lfo2Depth, 0.0f);
+        const float lfo2P = getF (ParamIDs::lfo2Phase, 0.0f);
 
         const auto lfo1WaveEnum = (dsp::LFO::Wave) lfo1W;
         const auto lfo2WaveEnum = (dsp::LFO::Wave) lfo2W;
@@ -184,12 +191,13 @@ namespace synth
             const float env     = adsr.getNextSample();
             const float filtEnv = filtAdsr.getNextSample();
 
-            // LFOs: valor actual * depth
-            const float lfo1Val = lfo1.getNextSample (lfo1WaveEnum, lfo1R, 0.0f) * lfo1D;
-            const float lfo2Val = lfo2.getNextSample (lfo2WaveEnum, lfo2R, 0.0f) * lfo2D;
+            // LFOs: valor actual * depth (con phase offset)
+            const float lfo1Val = lfo1.getNextSample (lfo1WaveEnum, lfo1R, lfo1P) * lfo1D;
+            const float lfo2Val = lfo2.getNextSample (lfo2WaveEnum, lfo2R, lfo2P) * lfo2D;
 
-            // Key tracking normalizado (-1..1 aprox en 3 octavas)
-            const float keyTrackVal = (currentMidiNote - 60.0f) / 36.0f;
+            // Note Number normalizado (-1..1 aprox en 5 octavas alrededor de C3)
+            const float noteNumberVal = juce::jlimit (-1.0f, 1.0f,
+                (currentMidiNote - 60.0f) / 60.0f);
 
             // Acumuladores por destino
             float modPitch1 = 0.0f;
@@ -197,7 +205,6 @@ namespace synth
             float modWT1    = 0.0f;
             float modWT2    = 0.0f;
             float modCutoff = 0.0f;
-            float modReso   = 0.0f;
             float modAmp    = 1.0f;
 
             for (const auto& m : mods)
@@ -207,14 +214,15 @@ namespace synth
                 float srcVal = 0.0f;
                 switch (m.source)
                 {
-                    case 1: srcVal = lfo1Val;        break;
-                    case 2: srcVal = lfo2Val;        break;
-                    case 3: srcVal = env;            break;
-                    case 4: srcVal = filtEnv;        break;
-                    case 5: srcVal = velocityGain;   break;
-                    case 6: srcVal = keyTrackVal;    break;
-                    case 7: srcVal = modWheelValue;  break;
-                    case 8: srcVal = aftertouchValue;break;
+                    case 1: srcVal = lfo1Val;         break;  // LFO 1
+                    case 2: srcVal = lfo2Val;         break;  // LFO 2
+                    case 3: srcVal = env;             break;  // Envelope 1 (Amp)
+                    case 4: srcVal = filtEnv;         break;  // Envelope 2 (Filt)
+                    case 5: srcVal = velocityGain;    break;  // Velocity
+                    case 6: srcVal = modWheelValue;   break;  // Mod Wheel
+                    case 7: srcVal = aftertouchValue; break;  // Aftertouch
+                    case 8: srcVal = noteNumberVal;   break;  // Note Number
+                    case 9: srcVal = randomValue;     break;  // Random
                     default: break;
                 }
 
@@ -222,31 +230,29 @@ namespace synth
 
                 switch (m.dest)
                 {
-                    case 1: modPitch1 += v; break;
-                    case 2: modPitch2 += v; break;
-                    case 3: modWT1    += v; break;
-                    case 4: modWT2    += v; break;
-                    case 5: modCutoff += v; break;
-                    case 6: modReso   += v; break;
-                    case 7: modAmp    += v; break;
+                    case 1: modPitch1 += v; break;   // OSC1 Pitch
+                    case 2: modPitch2 += v; break;   // OSC2 Pitch
+                    case 3: modWT1    += v; break;   // OSC1 Wave Pos
+                    case 4: modWT2    += v; break;   // OSC2 Wave Pos
+                    case 5: modCutoff += v; break;   // Filter Cutoff
+                    case 6: modAmp    += v; break;   // Amplifier
                     default: break;
                 }
             }
 
             // Aplicar modulaciones a los valores base
-            const float f1   = baseF1 * std::pow (2.0f, modPitch1 * 2.0f);  // ±2 octavas por unidad
+            const float f1   = baseF1 * std::pow (2.0f, modPitch1 * 2.0f);  // ±2 octavas
             const float f2   = baseF2 * std::pow (2.0f, modPitch2 * 2.0f);
             const float pos1 = juce::jlimit (0.0f, 1.0f, basePos1 + modWT1);
             const float pos2 = juce::jlimit (0.0f, 1.0f, basePos2 + modWT2);
 
             if (i % updateInterval == 0)
             {
-                const float envMod   = std::pow (2.0f, fEnvAmt * filtEnv * 5.0f);
-                const float modMod   = std::pow (2.0f, modCutoff * 5.0f);
+                const float envMod = std::pow (2.0f, fEnvAmt * filtEnv * 5.0f);
+                const float modMod = std::pow (2.0f, modCutoff * 5.0f);
                 filter.setCutoff (keyTrackedCutoff * envMod * modMod);
 
-                const float resoVal = juce::jlimit (0.0f, 1.0f, baseReso + modReso);
-                filter.setResonance (resoVal);
+                filter.setResonance (baseReso);
             }
 
             // Generación de la muestra
