@@ -46,12 +46,14 @@ namespace ParamIDs
     inline constexpr auto lfo1Rate  = "lfo1_rate";
     inline constexpr auto lfo1Depth = "lfo1_depth";
     inline constexpr auto lfo1Phase = "lfo1_phase";
+    inline constexpr auto lfo1Sync  = "lfo1_sync";
 
     // --- LFO 2 ---
     inline constexpr auto lfo2Wave  = "lfo2_wave";
     inline constexpr auto lfo2Rate  = "lfo2_rate";
     inline constexpr auto lfo2Depth = "lfo2_depth";
     inline constexpr auto lfo2Phase = "lfo2_phase";
+    inline constexpr auto lfo2Sync  = "lfo2_sync";
 
     // --- Matriz de Modulación (4 slots) ---
     inline constexpr auto mod1Source = "mod1_source";
@@ -69,4 +71,30 @@ namespace ParamIDs
     inline constexpr auto mod4Source = "mod4_source";
     inline constexpr auto mod4Dest   = "mod4_dest";
     inline constexpr auto mod4Amount = "mod4_amount";
+
+    // ============ FASE 5: EFECTOS ============
+    // Drive
+    inline constexpr auto driveOn     = "drive_on";
+    inline constexpr auto driveAmount = "drive_amount";
+    inline constexpr auto driveTone   = "drive_tone";
+    inline constexpr auto driveMix    = "drive_mix";
+
+    // Chorus
+    inline constexpr auto chorusOn    = "chorus_on";
+    inline constexpr auto chorusRate  = "chorus_rate";
+    inline constexpr auto chorusDepth = "chorus_depth";
+    inline constexpr auto chorusMix   = "chorus_mix";
+
+    // Delay
+    inline constexpr auto delayOn       = "delay_on";
+    inline constexpr auto delaySync     = "delay_sync";
+    inline constexpr auto delayTime     = "delay_time";
+    inline constexpr auto delayFeedback = "delay_feedback";
+    inline constexpr auto delayMix      = "delay_mix";
+
+    // Reverb
+    inline constexpr auto reverbOn    = "reverb_on";
+    inline constexpr auto reverbSize  = "reverb_size";
+    inline constexpr auto reverbDamp  = "reverb_damp";
+    inline constexpr auto reverbMix   = "reverb_mix";
 }
