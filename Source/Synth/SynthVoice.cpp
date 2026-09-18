@@ -1,6 +1,7 @@
 #include "SynthVoice.h"
 #include "SynthSound.h"
 #include "../ParameterIDs.h"
+#include <juce_core/juce_core.h>
 #include <cmath>
 
 namespace synth
