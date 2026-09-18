@@ -1,15 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PPGWave3Clone VERSION 0.1.0 LANGUAGES C CXX)
+project(PPGWave3Clone VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ---- Configuración específica para macOS Intel (Mac Pro 5.1 con OpenCore) ----
 if (APPLE)
-    # Solo x86_64: tu Mac Pro es Intel. Evita compilar ARM inútilmente.
     set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "" FORCE)
-    # Ventura es 13.0; deployment 11.0 da margen y evita símbolos raros.
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "" FORCE)
 endif()
 
@@ -39,6 +36,7 @@ target_sources(PPGWave3Clone
         Source/DSP/Wavetable.cpp
         Source/DSP/Oscillator.cpp
         Source/DSP/Filter.cpp
+        Source/DSP/LFO.cpp
         Source/Synth/SynthVoice.cpp
 )
 
@@ -62,9 +60,6 @@ target_link_libraries(PPGWave3Clone
         juce::juce_recommended_warning_flags
 )
 
-# ---- Anti-AVX2 para CPUs Intel antiguas (Sandy/Ivy Bridge y anteriores) ----
-# Evita el crash "illegal instruction" en Ableton Live cuando juce_dsp
-# intenta usar rutinas AVX2 que tu CPU con OpenCore no tiene.
 if (APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     target_compile_options(PPGWave3Clone PRIVATE -mno-avx -mno-avx2)
 endif()
