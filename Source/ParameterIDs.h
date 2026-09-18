@@ -41,17 +41,17 @@ namespace ParamIDs
     // --- Master ---
     inline constexpr auto masterGain = "master_gain";
 
-    // ============ FASE 4 ============
-
     // --- LFO 1 ---
     inline constexpr auto lfo1Wave  = "lfo1_wave";
     inline constexpr auto lfo1Rate  = "lfo1_rate";
     inline constexpr auto lfo1Depth = "lfo1_depth";
+    inline constexpr auto lfo1Phase = "lfo1_phase";
 
     // --- LFO 2 ---
     inline constexpr auto lfo2Wave  = "lfo2_wave";
     inline constexpr auto lfo2Rate  = "lfo2_rate";
     inline constexpr auto lfo2Depth = "lfo2_depth";
+    inline constexpr auto lfo2Phase = "lfo2_phase";
 
     // --- Matriz de Modulación (4 slots) ---
     inline constexpr auto mod1Source = "mod1_source";
