@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PPGWave3Clone VERSION 0.2.0 LANGUAGES C CXX)
+project(PPGWave3Clone VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,6 +37,7 @@ target_sources(PPGWave3Clone
         Source/DSP/Oscillator.cpp
         Source/DSP/Filter.cpp
         Source/DSP/LFO.cpp
+        Source/DSP/Effects.cpp
         Source/Synth/SynthVoice.cpp
 )
 
