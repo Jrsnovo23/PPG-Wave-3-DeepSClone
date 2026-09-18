@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <atomic>
 #include "../DSP/Oscillator.h"
 #include "../DSP/Wavetable.h"
 #include "../DSP/Filter.h"
@@ -11,6 +12,8 @@ namespace synth
     {
     public:
         explicit SynthVoice (juce::AudioProcessorValueTreeState& apvts);
+
+        void setBpmSource (std::atomic<double>* bpm) { bpmSource = bpm; }
 
         bool canPlaySound (juce::SynthesiserSound*) override;
         void startNote (int midiNote, float velocity,
@@ -24,15 +27,16 @@ namespace synth
     private:
         struct ModSlot
         {
-            int   source = 0;   // 0=None, 1=LFO1, 2=LFO2, 3=Env1(Amp), 4=Env2(Filt),
-                                // 5=Velocity, 6=ModWheel, 7=Aftertouch,
-                                // 8=NoteNumber, 9=Random
-            int   dest   = 0;   // 0=None, 1=OSC1Pitch, 2=OSC2Pitch, 3=OSC1WTPos,
-                                // 4=OSC2WTPos, 5=Cutoff, 6=Amp
+            int   source = 0;
+            int   dest   = 0;
             float amount = 0.0f;
         };
 
+        // Convierte un índice de sync (0..10) a multiplicador en beats
+        static float syncIndexToBeats (int idx) noexcept;
+
         juce::AudioProcessorValueTreeState& apvts;
+        std::atomic<double>* bpmSource = nullptr;
 
         dsp::Oscillator osc1, osc2;
         dsp::Wavetable  wave1, wave2;
