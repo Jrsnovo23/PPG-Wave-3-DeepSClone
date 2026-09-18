@@ -1,6 +1,8 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
+#include <atomic>
+#include "DSP/Effects.h"
 
 class PPGWave3Processor : public juce::AudioProcessor
 {
@@ -20,7 +22,7 @@ public:
     bool acceptsMidi()  const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    double getTailLengthSeconds() const override { return 2.0; }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -33,8 +35,12 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
+    // BPM compartido con las voces (para sync de LFOs y Delay).
+    std::atomic<double> currentBpm { 120.0 };
+
 private:
     juce::Synthesiser synth;
+    dsp::Effects effects;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PPGWave3Processor)
 };
