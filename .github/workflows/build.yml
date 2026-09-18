@@ -1,11 +1,16 @@
 name: Build PPG Wave 3 Clone
 
+# ==============================================================
+# COMPILACIÓN MANUAL — solo se ejecuta cuando tú la pidas.
+# Para activar la compilación automática al hacer push,
+# descomenta las 4 líneas del bloque "on: push" de abajo.
+# ==============================================================
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
+  # push:
+  #   branches: [ main, master ]
+  # pull_request:
+  #   branches: [ main, master ]
 
 jobs:
   build-macos:
