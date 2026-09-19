@@ -68,34 +68,24 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         return def;
     };
 
-    // Chorus
     effects.setChorus (getB (ParamIDs::chorusOn, false),
                        getF (ParamIDs::chorusRate, 0.5f),
                        getF (ParamIDs::chorusDepth, 0.25f),
                        getF (ParamIDs::chorusMix, 0.5f));
 
-    // Delay con sync
     {
         const int syncIdx = getI (ParamIDs::delaySync, 0);
         float delayTimeSec = getF (ParamIDs::delayTime, 0.3f);
 
-        if (syncIdx > 0)  // no es "Free"
+        if (syncIdx > 0)
         {
             const double bpm = currentBpm.load();
             const double beatSec = 60.0 / juce::jmax (1.0, bpm);
 
-            // Divisiones: 1/1, 1/2, 1/4, 1/8, 1/16, 1/4T, 1/8T, 1/16T, 1/4., 1/8.
             const double divisions[] = {
-                4.0,        // 1/1 (4 beats)
-                2.0,        // 1/2
-                1.0,        // 1/4
-                0.5,        // 1/8
-                0.25,       // 1/16
-                1.0 * 2.0/3.0,  // 1/4T
-                0.5 * 2.0/3.0,  // 1/8T
-                0.25 * 2.0/3.0, // 1/16T
-                1.5,        // 1/4.
-                0.75        // 1/8.
+                4.0, 2.0, 1.0, 0.5, 0.25,
+                1.0 * 2.0/3.0, 0.5 * 2.0/3.0, 0.25 * 2.0/3.0,
+                1.5, 0.75
             };
             const int divIdx = juce::jlimit (0, 9, syncIdx - 1);
             delayTimeSec = (float) (beatSec * divisions[divIdx]);
@@ -107,20 +97,25 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
                           getF (ParamIDs::delayMix, 0.3f));
     }
 
-    // Reverb
     effects.setReverb (getB (ParamIDs::reverbOn, false),
                        getF (ParamIDs::reverbSize, 0.6f),
                        getF (ParamIDs::reverbDamp, 0.5f),
                        getF (ParamIDs::reverbMix, 0.3f));
 
-    // Drive
     effects.setDrive (getB (ParamIDs::driveOn, false),
                       getF (ParamIDs::driveAmount, 3.0f),
                       getF (ParamIDs::driveTone, 0.5f),
                       getF (ParamIDs::driveMix, 0.5f));
 
-    // 4. Aplicar efectos
     effects.process (buffer);
+
+    // Medir el pico de salida (para el VU meter)
+    {
+        float peak = 0.0f;
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            peak = juce::jmax (peak, buffer.getMagnitude (ch, 0, buffer.getNumSamples()));
+        peakLevel.store (peak);
+    }
 }
 
 juce::AudioProcessorEditor* PPGWave3Processor::createEditor()
