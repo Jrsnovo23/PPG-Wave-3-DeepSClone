@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "UI/PPGLookAndFeel.h"
 #include "UI/Visualizers.h"
+#include "Presets/PresetManager.h"
 
 class PPGWave3Editor : public juce::AudioProcessorEditor
 {
@@ -117,15 +118,42 @@ private:
         float            scale = 1.0f;
     };
 
+    // Panel central de la barra de presets
+    class PresetDisplay : public juce::Component
+    {
+    public:
+        void setInfo (const juce::String& name, const juce::String& category, bool factory);
+        void paint (juce::Graphics&) override;
+    private:
+        juce::String presetName { "Init Saw" };
+        juce::String presetCategory { "Init" };
+        bool isFactory = true;
+    };
+
     void  drawSection (juce::Graphics& g, juce::Rectangle<int> area,
                        const juce::String& title) const;
     void  drawLogo (juce::Graphics& g, juce::Rectangle<int> area) const;
     float computeScale() const;
     void  applyScaleToAll (float s);
 
+    void  updatePresetDisplay();
+    void  onPrevPreset();
+    void  onNextPreset();
+    void  onLoadPreset();
+    void  onSavePreset();
+    void  onBrowsePreset();
+
     PPGWave3Processor& processorRef;
     juce::AudioProcessorValueTreeState& apvts;
     PPGLookAndFeel ppgLnf;
+
+    presets::PresetManager presetManager;
+
+    // === Preset bar ===
+    juce::TextButton prevBtn, nextBtn;
+    juce::TextButton loadBtn, saveBtn, browseBtn;
+    PresetDisplay    presetDisplay;
+    std::unique_ptr<juce::FileChooser> fileChooser;
 
     InfoDisplay osc1Info, osc2Info, filterInfo;
     InfoDisplay ampEnvInfo, filtEnvInfo, masterInfo;
@@ -185,6 +213,8 @@ private:
     juce::Rectangle<int> osc1Area, osc2Area, filterArea;
     juce::Rectangle<int> lfoArea, modArea, fxArea;
     juce::Rectangle<int> ampEnvArea, filtEnvArea, masterArea;
+
+    juce::Rectangle<int> presetBarArea;
 
     float currentScale = 1.0f;
 
