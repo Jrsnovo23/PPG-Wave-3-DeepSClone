@@ -38,6 +38,9 @@ public:
     // BPM compartido con las voces (para sync de LFOs y Delay).
     std::atomic<double> currentBpm { 120.0 };
 
+    // Nivel de pico de la última pasada (para el VU meter).
+    std::atomic<float> peakLevel { 0.0f };
+
 private:
     juce::Synthesiser synth;
     dsp::Effects effects;
