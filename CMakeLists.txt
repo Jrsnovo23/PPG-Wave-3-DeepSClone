@@ -40,6 +40,7 @@ target_sources(PPGWave3Clone
         Source/DSP/Effects.cpp
         Source/Synth/SynthVoice.cpp
         Source/UI/PPGLookAndFeel.cpp
+        Source/UI/Visualizers.cpp
 )
 
 target_include_directories(PPGWave3Clone PRIVATE Source)
