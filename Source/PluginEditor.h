@@ -118,7 +118,6 @@ private:
         float            scale = 1.0f;
     };
 
-    // Panel central de la barra de presets
     class PresetDisplay : public juce::Component
     {
     public:
@@ -142,6 +141,8 @@ private:
     void  onLoadPreset();
     void  onSavePreset();
     void  onBrowsePreset();
+
+    void  updateFxVisibility();
 
     PPGWave3Processor& processorRef;
     juce::AudioProcessorValueTreeState& apvts;
@@ -199,14 +200,21 @@ private:
     std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  HSlider mod3Amt;
     std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  HSlider mod4Amt;
 
-    // FX
+    // FX — pestañas
+    juce::TextButton driveTabBtn, chorusTabBtn, delayTabBtn, reverbTabBtn;
+    int activeFxTab = 0;   // 0=Drive, 1=Chorus, 2=Delay, 3=Reverb
+
+    // FX — Drive
     std::unique_ptr<ToggleButton> driveOn;
     RotaryKnob driveAmount, driveTone, driveMix;
+    // FX — Chorus
     std::unique_ptr<ToggleButton> chorusOn;
     RotaryKnob chorusRate, chorusDepth, chorusMix;
+    // FX — Delay
     std::unique_ptr<ToggleButton> delayOn;
     std::unique_ptr<ComboBoxSelector> delaySync;
     RotaryKnob delayTime, delayFeedback, delayMix;
+    // FX — Reverb
     std::unique_ptr<ToggleButton> reverbOn;
     RotaryKnob reverbSize, reverbDamp, reverbMix;
 
