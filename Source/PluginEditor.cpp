@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
+#include "../UI/PPGLookAndFeel.h"
 
 // ==================== InfoDisplay ====================
 
@@ -252,7 +253,6 @@ PPGWave3Editor::ToggleButton::ToggleButton (juce::AudioProcessorValueTreeState& 
 void PPGWave3Editor::ToggleButton::setScale (float s)
 {
     scale = s;
-    button.setConnectedEdges (juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight);
 }
 
 void PPGWave3Editor::ToggleButton::resized()
@@ -342,18 +342,15 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     addAndMakeVisible (*osc1Wave);
     addAndMakeVisible (*osc2Wave);
     addAndMakeVisible (*filterType);
-    addAndMakeVisible (*lfo1Wave);
-    addAndMakeVisible (*lfo2Wave);
-    addAndMakeVisible (*lfo1Sync);
-    addAndMakeVisible (*lfo2Sync);
-    addAndMakeVisible (*mod1Src); addAndMakeVisible (*mod1Dst);
-    addAndMakeVisible (*mod2Src); addAndMakeVisible (*mod2Dst);
-    addAndMakeVisible (*mod3Src); addAndMakeVisible (*mod3Dst);
-    addAndMakeVisible (*mod4Src); addAndMakeVisible (*mod4Dst);
+    addAndMakeVisible (*lfo1Wave);   addAndMakeVisible (*lfo1Sync);
+    addAndMakeVisible (*lfo2Wave);   addAndMakeVisible (*lfo2Sync);
+    addAndMakeVisible (*mod1Src);    addAndMakeVisible (*mod1Dst);
+    addAndMakeVisible (*mod2Src);    addAndMakeVisible (*mod2Dst);
+    addAndMakeVisible (*mod3Src);    addAndMakeVisible (*mod3Dst);
+    addAndMakeVisible (*mod4Src);    addAndMakeVisible (*mod4Dst);
     addAndMakeVisible (*driveOn);
     addAndMakeVisible (*chorusOn);
-    addAndMakeVisible (*delayOn);
-    addAndMakeVisible (*delaySync);
+    addAndMakeVisible (*delayOn);    addAndMakeVisible (*delaySync);
     addAndMakeVisible (*reverbOn);
 
     for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
@@ -379,14 +376,22 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     for (auto* c : allKnobs)
         addAndMakeVisible (c);
 
+    // Aplicar LookAndFeel PPG
+    setLookAndFeel (&ppgLnf);
+
     setResizable (true, true);
-    setResizeLimits (860, 800, 1400, 1400);
-    setSize (960, 860);
+    setResizeLimits (900, 900, 1400, 1600);
+    setSize (980, 1020);
+}
+
+PPGWave3Editor::~PPGWave3Editor()
+{
+    setLookAndFeel (nullptr);
 }
 
 float PPGWave3Editor::computeScale() const
 {
-    const float refH = 860.0f;
+    const float refH = 1020.0f;
     return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
 }
 
@@ -435,24 +440,35 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
 
 void PPGWave3Editor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff151515));
+    // Fondo con degradado sutil
+    g.fillAll (PPGLookAndFeel::bgApp());
 
-    auto top = getLocalBounds().removeFromTop (24);
-    g.setColour (juce::Colour (0xff0a0a0a));
-    g.fillRect (top);
-    g.setColour (juce::Colour (0xffffaa00));
-    g.setFont (juce::FontOptions (12.0f * currentScale, juce::Font::bold));
-    g.drawText ("PPG WAVE 3 CLONE   /   PHASE 5",
-                top.reduced (10, 0), juce::Justification::centredLeft);
+    // Header con logo
+    auto top = getLocalBounds().removeFromTop (36);
+    {
+        juce::ColourGradient grad (juce::Colour (0xff0a0a0a),
+                                   0.0f, (float) top.getY(),
+                                   juce::Colour (0xff1a1a1a),
+                                   0.0f, (float) top.getBottom(), false);
+        g.setGradientFill (grad);
+        g.fillRect (top);
+
+        // Línea dorada inferior
+        g.setColour (PPGLookAndFeel::accent());
+        g.fillRect (top.getX(), top.getBottom() - 1, top.getWidth(), 1);
+
+        // Logo
+        drawLogo (g, top.reduced (10, 4));
+    }
 
     drawSection (g, osc1Area,    "OSCILLATOR 1");
     drawSection (g, osc2Area,    "OSCILLATOR 2");
     drawSection (g, filterArea,  "FILTER");
     drawSection (g, lfoArea,     "LFO");
-    drawSection (g, modArea,     "MOD MATRIX");
+    drawSection (g, modArea,     "MODULATION MATRIX");
     drawSection (g, fxArea,      "EFFECTS");
-    drawSection (g, ampEnvArea,  "AMP ENV");
-    drawSection (g, filtEnvArea, "FILTER ENV");
+    drawSection (g, ampEnvArea,  "AMP ENVELOPE");
+    drawSection (g, filtEnvArea, "FILTER ENVELOPE");
     drawSection (g, masterArea,  "MASTER");
 }
 
@@ -460,12 +476,70 @@ void PPGWave3Editor::drawSection (juce::Graphics& g, juce::Rectangle<int> area,
                                   const juce::String& title) const
 {
     if (area.isEmpty()) return;
-    g.setColour (juce::Colour (0xff2a2a2a));
-    g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 4.0f, 1.0f);
-    g.setColour (juce::Colour (0xffffaa00));
-    g.setFont (juce::FontOptions (10.0f * currentScale, juce::Font::bold));
-    g.drawText (title, area.getX() + 8, area.getY() + 3, 200, 12,
+
+    // Fondo de panel con degradado sutil
+    const auto r = area.toFloat();
+    juce::ColourGradient grad (juce::Colour (0xff1c1c1c), r.getX(), r.getY(),
+                               juce::Colour (0xff151515), r.getX(), r.getBottom(), false);
+    g.setGradientFill (grad);
+    g.fillRoundedRectangle (r, 4.0f);
+
+    // Borde
+    g.setColour (juce::Colour (0xff2f2f2f));
+    g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
+
+    // Título en dorado, mayúsculas
+    g.setColour (PPGLookAndFeel::accent());
+    g.setFont (juce::Font (juce::FontOptions (9.5f * currentScale, juce::Font::bold)));
+
+    const int titleW = juce::jmin (area.getWidth() - 16, 240);
+    const int titleY = area.getY() + 3;
+    g.drawText (title.toUpperCase(), area.getX() + 8, titleY, titleW, 12,
                 juce::Justification::centredLeft);
+
+    // Línea dorada fina bajo el título
+    g.setColour (PPGLookAndFeel::accent().withAlpha (0.35f));
+    g.fillRect (area.getX() + 8, titleY + 13,
+                juce::jmin (titleW, 200), 1);
+}
+
+void PPGWave3Editor::drawLogo (juce::Graphics& g, juce::Rectangle<int> area) const
+{
+    // "PPG" grande y bold + "WAVE 3.3" más fino al lado
+    const float h = (float) area.getHeight();
+
+    // PPG
+    const float ppgSize = juce::jmax (18.0f, h * 0.75f * currentScale);
+    g.setFont (juce::Font (juce::FontOptions (ppgSize, juce::Font::bold)));
+    g.setColour (PPGLookAndFeel::accent());
+
+    const juce::String ppgText ("PPG");
+    const int ppgW = (int) g.getCurrentFont().getStringWidthFloat (ppgText) + 4;
+
+    g.drawText (ppgText, area.removeFromLeft (ppgW),
+                juce::Justification::centredLeft, false);
+
+    // Espacio
+    area.removeFromLeft (8);
+
+    // WAVE 3.3
+    const float waveSize = juce::jmax (10.0f, h * 0.42f * currentScale);
+    g.setFont (juce::Font (juce::FontOptions (waveSize, juce::Font::plain)));
+    g.setColour (PPGLookAndFeel::textPrimary());
+
+    const juce::String waveText ("WAVE 3.3");
+    const int waveW = (int) g.getCurrentFont().getStringWidthFloat (waveText) + 4;
+
+    auto waveArea = area.removeFromLeft (waveW);
+    g.drawText (waveText, waveArea, juce::Justification::centredLeft, false);
+
+    // Subtítulo "Wave Table Synthesizer"
+    area.removeFromLeft (8);
+    g.setFont (juce::Font (juce::FontOptions (juce::jmax (8.0f, h * 0.28f * currentScale),
+                                              juce::Font::italic)));
+    g.setColour (PPGLookAndFeel::textDim());
+    g.drawText ("Wave Table Synthesizer", area,
+                juce::Justification::centredLeft, false);
 }
 
 void PPGWave3Editor::resized()
@@ -482,11 +556,11 @@ void PPGWave3Editor::resized()
     const int availH = h - 7 * gap;
 
     const float availHf = (float) availH;
-    const int oscH  = (int) (availHf * 0.105f);
-    const int filtH = (int) (availHf * 0.105f);
-    const int lfoH  = (int) (availHf * 0.115f);
-    const int modH  = (int) (availHf * 0.175f);
-    const int fxH   = (int) (availHf * 0.175f);
+    const int oscH  = (int) (availHf * 0.095f);
+    const int filtH = (int) (availHf * 0.095f);
+    const int lfoH  = (int) (availHf * 0.105f);
+    const int modH  = (int) (availHf * 0.155f);
+    const int fxH   = (int) (availHf * 0.265f);
     const int envH  = availH - 2 * oscH - filtH - lfoH - modH - fxH;
 
     osc1Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
@@ -562,7 +636,7 @@ void PPGWave3Editor::resized()
         filterKeyTrack.setBounds (inner.reduced (1, 0));
     }
 
-    // -------- LFO (con Sync) --------
+    // -------- LFO --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (lfoArea, lfoInfo, inner);
@@ -591,7 +665,7 @@ void PPGWave3Editor::resized()
         layoutLFO (lfo2Zone, *lfo2Wave, *lfo2Sync, lfo2Rate, lfo2Depth, lfo2Phase);
     }
 
-    // -------- Mod Matrix (con HSlider) --------
+    // -------- Mod Matrix --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (modArea, modInfo, inner);
@@ -613,56 +687,59 @@ void PPGWave3Editor::resized()
         layoutRow (inner,                        *mod4Src, *mod4Dst, mod4Amt);
     }
 
-    // -------- Effects (4 sub-secciones: Drive / Chorus / Delay / Reverb) --------
+    // -------- Effects 2x2 grid --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (fxArea, fxInfo, inner);
-        const int rowH = inner.getHeight() / 4;
-        const int toggleW = 70;
 
-        // Drive
+        const int rowH = inner.getHeight() / 2;
+        const int colW = inner.getWidth() / 2;
+
+        auto topRow = inner.removeFromTop (rowH);
+        auto botRow = inner;
+
+        auto topLeft  = topRow.removeFromLeft (colW);
+        auto topRight = topRow;
+        auto botLeft  = botRow.removeFromLeft (colW);
+        auto botRight = botRow;
+
+        const int toggleW = 68;
+
+        auto layoutFxSimple = [] (juce::Rectangle<int> area, ToggleButton& on,
+                                  RotaryKnob& k1, RotaryKnob& k2, RotaryKnob& k3,
+                                  int toggleWidth)
         {
-            auto row = inner.removeFromTop (rowH);
-            driveOn->setBounds (row.removeFromLeft (toggleW).reduced (2, 4));
-            row.removeFromLeft (2);
-            const int kw = row.getWidth() / 3;
-            driveAmount.setBounds (row.removeFromLeft (kw).reduced (1, 0));
-            driveTone  .setBounds (row.removeFromLeft (kw).reduced (1, 0));
-            driveMix   .setBounds (row.reduced (1, 0));
-        }
-        // Chorus
+            area = area.reduced (4, 2);
+            on.setBounds (area.removeFromLeft (toggleWidth).reduced (2, 6));
+            area.removeFromLeft (2);
+            const int kw = area.getWidth() / 3;
+            k1.setBounds (area.removeFromLeft (kw).reduced (1, 0));
+            k2.setBounds (area.removeFromLeft (kw).reduced (1, 0));
+            k3.setBounds (area.reduced (1, 0));
+        };
+
+        // Top-Left: Drive
+        layoutFxSimple (topLeft, *driveOn, driveAmount, driveTone, driveMix, toggleW);
+
+        // Top-Right: Chorus
+        layoutFxSimple (topRight, *chorusOn, chorusRate, chorusDepth, chorusMix, toggleW);
+
+        // Bot-Left: Delay
         {
-            auto row = inner.removeFromTop (rowH);
-            chorusOn->setBounds (row.removeFromLeft (toggleW).reduced (2, 4));
-            row.removeFromLeft (2);
-            const int kw = row.getWidth() / 3;
-            chorusRate .setBounds (row.removeFromLeft (kw).reduced (1, 0));
-            chorusDepth.setBounds (row.removeFromLeft (kw).reduced (1, 0));
-            chorusMix  .setBounds (row.reduced (1, 0));
+            auto area = botLeft.reduced (4, 2);
+            delayOn->setBounds (area.removeFromLeft (toggleW).reduced (2, 6));
+            area.removeFromLeft (2);
+            const int syncW = (int) ((float) area.getWidth() * 0.22f);
+            delaySync->setBounds (area.removeFromLeft (syncW).reduced (2, 0));
+            area.removeFromLeft (2);
+            const int kw = area.getWidth() / 3;
+            delayTime    .setBounds (area.removeFromLeft (kw).reduced (1, 0));
+            delayFeedback.setBounds (area.removeFromLeft (kw).reduced (1, 0));
+            delayMix     .setBounds (area.reduced (1, 0));
         }
-        // Delay
-        {
-            auto row = inner.removeFromTop (rowH);
-            delayOn->setBounds (row.removeFromLeft (toggleW).reduced (2, 4));
-            row.removeFromLeft (2);
-            const int syncW = (int) ((float) row.getWidth() * 0.22f);
-            delaySync->setBounds (row.removeFromLeft (syncW).reduced (2, 0));
-            row.removeFromLeft (2);
-            const int kw = row.getWidth() / 3;
-            delayTime    .setBounds (row.removeFromLeft (kw).reduced (1, 0));
-            delayFeedback.setBounds (row.removeFromLeft (kw).reduced (1, 0));
-            delayMix     .setBounds (row.reduced (1, 0));
-        }
-        // Reverb
-        {
-            auto row = inner;
-            reverbOn->setBounds (row.removeFromLeft (toggleW).reduced (2, 4));
-            row.removeFromLeft (2);
-            const int kw = row.getWidth() / 3;
-            reverbSize.setBounds (row.removeFromLeft (kw).reduced (1, 0));
-            reverbDamp.setBounds (row.removeFromLeft (kw).reduced (1, 0));
-            reverbMix .setBounds (row.reduced (1, 0));
-        }
+
+        // Bot-Right: Reverb
+        layoutFxSimple (botRight, *reverbOn, reverbSize, reverbDamp, reverbMix, toggleW);
     }
 
     // -------- Amp Env --------
