@@ -84,6 +84,43 @@ void PPGWave3Editor::RotaryKnob::resized()
 
 void PPGWave3Editor::RotaryKnob::paint (juce::Graphics&) {}
 
+// ==================== HSlider ====================
+
+PPGWave3Editor::HSlider::HSlider (juce::AudioProcessorValueTreeState& state,
+                                  const juce::String& paramID,
+                                  InfoDisplay* display)
+    : infoDisplay (display)
+{
+    slider.setSliderStyle (juce::Slider::LinearHorizontal);
+    slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    slider.setColour (juce::Slider::trackColourId,       juce::Colour (0xffffaa00));
+    slider.setColour (juce::Slider::backgroundColourId,  juce::Colour (0xff2a2a2a));
+    slider.setColour (juce::Slider::thumbColourId,       juce::Colour (0xffffcc55));
+    addAndMakeVisible (slider);
+
+    slider.onValueChange = [this]()
+    {
+        if (infoDisplay != nullptr)
+            infoDisplay->setInfo ("Mod Amount", slider.getTextFromValue (slider.getValue()));
+    };
+
+    attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        state, paramID, slider);
+}
+
+void PPGWave3Editor::HSlider::setScale (float s)
+{
+    scale = s;
+    resized();
+}
+
+void PPGWave3Editor::HSlider::resized()
+{
+    slider.setBounds (getLocalBounds().reduced (2, 4));
+}
+
+void PPGWave3Editor::HSlider::paint (juce::Graphics&) {}
+
 // ==================== ButtonSelector ====================
 
 PPGWave3Editor::ButtonSelector::ButtonSelector (juce::AudioProcessorValueTreeState& state,
@@ -152,17 +189,12 @@ PPGWave3Editor::ComboBoxSelector::ComboBoxSelector (juce::AudioProcessorValueTre
     label.setColour (juce::Label::textColourId, juce::Colour (0xffcccccc));
     addAndMakeVisible (label);
 
-    // PRIMERO poblamos el ComboBox con las opciones del AudioParameterChoice.
-    // El attachment por sí solo no agrega items; solo sincroniza el índice.
     if (auto* param = state.getParameter (paramID))
     {
         if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
-        {
-            combo.addItemList (choice->choices, 1); // 1 = primer itemId
-        }
+            combo.addItemList (choice->choices, 1);
     }
 
-    // AHORA creamos el attachment, que seleccionará el índice correcto.
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         state, paramID, combo);
 
@@ -189,6 +221,46 @@ void PPGWave3Editor::ComboBoxSelector::resized()
 }
 
 void PPGWave3Editor::ComboBoxSelector::paint (juce::Graphics&) {}
+
+// ==================== ToggleButton ====================
+
+PPGWave3Editor::ToggleButton::ToggleButton (juce::AudioProcessorValueTreeState& state,
+                                            const juce::String& paramID,
+                                            const juce::String& labelText,
+                                            InfoDisplay* display)
+    : infoDisplay (display), paramName (labelText)
+{
+    button.setButtonText (labelText);
+    button.setClickingTogglesState (true);
+    button.setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff2a2a2a));
+    button.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffaa00));
+    button.setColour (juce::TextButton::textColourOffId,  juce::Colour (0xffcccccc));
+    button.setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
+
+    button.onClick = [this]()
+    {
+        if (infoDisplay != nullptr)
+            infoDisplay->setInfo (paramName, button.getToggleState() ? "ON" : "OFF");
+    };
+
+    addAndMakeVisible (button);
+
+    attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        state, paramID, button);
+}
+
+void PPGWave3Editor::ToggleButton::setScale (float s)
+{
+    scale = s;
+    button.setConnectedEdges (juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight);
+}
+
+void PPGWave3Editor::ToggleButton::resized()
+{
+    button.setBounds (getLocalBounds());
+}
+
+void PPGWave3Editor::ToggleButton::paint (juce::Graphics&) {}
 
 // ==================== Editor ====================
 
@@ -229,47 +301,66 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       lfo1Rate  (p.apvts, ParamIDs::lfo1Rate,  "RATE",  &lfoInfo),
       lfo1Depth (p.apvts, ParamIDs::lfo1Depth, "DEPTH", &lfoInfo),
       lfo1Phase (p.apvts, ParamIDs::lfo1Phase, "PHASE", &lfoInfo),
+      lfo1Sync  (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo1Sync, "SYNC", &lfoInfo)),
       lfo2Wave (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo2Wave, "WAVE", &lfoInfo)),
       lfo2Rate  (p.apvts, ParamIDs::lfo2Rate,  "RATE",  &lfoInfo),
       lfo2Depth (p.apvts, ParamIDs::lfo2Depth, "DEPTH", &lfoInfo),
       lfo2Phase (p.apvts, ParamIDs::lfo2Phase, "PHASE", &lfoInfo),
+      lfo2Sync  (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo2Sync, "SYNC", &lfoInfo)),
       mod1Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod1Source, "SRC", &modInfo)),
       mod1Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod1Dest,   "DST", &modInfo)),
-      mod1Amt (p.apvts, ParamIDs::mod1Amount, "AMT", &modInfo),
+      mod1Amt (p.apvts, ParamIDs::mod1Amount, &modInfo),
       mod2Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod2Source, "SRC", &modInfo)),
       mod2Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod2Dest,   "DST", &modInfo)),
-      mod2Amt (p.apvts, ParamIDs::mod2Amount, "AMT", &modInfo),
+      mod2Amt (p.apvts, ParamIDs::mod2Amount, &modInfo),
       mod3Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod3Source, "SRC", &modInfo)),
       mod3Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod3Dest,   "DST", &modInfo)),
-      mod3Amt (p.apvts, ParamIDs::mod3Amount, "AMT", &modInfo),
+      mod3Amt (p.apvts, ParamIDs::mod3Amount, &modInfo),
       mod4Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod4Source, "SRC", &modInfo)),
       mod4Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod4Dest,   "DST", &modInfo)),
-      mod4Amt (p.apvts, ParamIDs::mod4Amount, "AMT", &modInfo)
+      mod4Amt (p.apvts, ParamIDs::mod4Amount, &modInfo),
+      driveOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::driveOn, "DRIVE", &fxInfo)),
+      driveAmount (p.apvts, ParamIDs::driveAmount, "AMT",  &fxInfo),
+      driveTone   (p.apvts, ParamIDs::driveTone,   "TONE", &fxInfo),
+      driveMix    (p.apvts, ParamIDs::driveMix,    "MIX",  &fxInfo),
+      chorusOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::chorusOn, "CHORUS", &fxInfo)),
+      chorusRate  (p.apvts, ParamIDs::chorusRate,  "RATE",  &fxInfo),
+      chorusDepth (p.apvts, ParamIDs::chorusDepth, "DEPTH", &fxInfo),
+      chorusMix   (p.apvts, ParamIDs::chorusMix,   "MIX",   &fxInfo),
+      delayOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::delayOn, "DELAY", &fxInfo)),
+      delaySync (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::delaySync, "SYNC", &fxInfo)),
+      delayTime     (p.apvts, ParamIDs::delayTime,     "TIME",  &fxInfo),
+      delayFeedback (p.apvts, ParamIDs::delayFeedback, "FEEDBK",&fxInfo),
+      delayMix      (p.apvts, ParamIDs::delayMix,      "MIX",   &fxInfo),
+      reverbOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::reverbOn, "REVERB", &fxInfo)),
+      reverbSize (p.apvts, ParamIDs::reverbSize, "SIZE", &fxInfo),
+      reverbDamp (p.apvts, ParamIDs::reverbDamp, "DAMP", &fxInfo),
+      reverbMix  (p.apvts, ParamIDs::reverbMix,  "MIX",  &fxInfo)
 {
     juce::ignoreUnused (processorRef, apvts);
 
-    // --- Selectores (listados uno por uno) ---
     addAndMakeVisible (*osc1Wave);
     addAndMakeVisible (*osc2Wave);
     addAndMakeVisible (*filterType);
     addAndMakeVisible (*lfo1Wave);
     addAndMakeVisible (*lfo2Wave);
-    addAndMakeVisible (*mod1Src);
-    addAndMakeVisible (*mod1Dst);
-    addAndMakeVisible (*mod2Src);
-    addAndMakeVisible (*mod2Dst);
-    addAndMakeVisible (*mod3Src);
-    addAndMakeVisible (*mod3Dst);
-    addAndMakeVisible (*mod4Src);
-    addAndMakeVisible (*mod4Dst);
+    addAndMakeVisible (*lfo1Sync);
+    addAndMakeVisible (*lfo2Sync);
+    addAndMakeVisible (*mod1Src); addAndMakeVisible (*mod1Dst);
+    addAndMakeVisible (*mod2Src); addAndMakeVisible (*mod2Dst);
+    addAndMakeVisible (*mod3Src); addAndMakeVisible (*mod3Dst);
+    addAndMakeVisible (*mod4Src); addAndMakeVisible (*mod4Dst);
+    addAndMakeVisible (*driveOn);
+    addAndMakeVisible (*chorusOn);
+    addAndMakeVisible (*delayOn);
+    addAndMakeVisible (*delaySync);
+    addAndMakeVisible (*reverbOn);
 
-    // --- Info displays ---
     for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
                      &ampEnvInfo, &filtEnvInfo, &masterInfo,
-                     &lfoInfo, &modInfo })
+                     &lfoInfo, &modInfo, &fxInfo })
         addAndMakeVisible (d);
 
-    // --- Perillas ---
     std::initializer_list<juce::Component*> allKnobs {
         &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
         &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
@@ -279,25 +370,28 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
         &master,
         &lfo1Rate, &lfo1Depth, &lfo1Phase,
         &lfo2Rate, &lfo2Depth, &lfo2Phase,
+        &driveAmount, &driveTone, &driveMix,
+        &chorusRate, &chorusDepth, &chorusMix,
+        &delayTime, &delayFeedback, &delayMix,
+        &reverbSize, &reverbDamp, &reverbMix,
         &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt
     };
     for (auto* c : allKnobs)
         addAndMakeVisible (c);
 
     setResizable (true, true);
-    setResizeLimits (700, 620, 1400, 1260);
-    setSize (860, 720);
+    setResizeLimits (860, 800, 1400, 1400);
+    setSize (960, 860);
 }
 
 float PPGWave3Editor::computeScale() const
 {
-    const float refH = 720.0f;
+    const float refH = 860.0f;
     return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
 }
 
 void PPGWave3Editor::applyScaleToAll (float scaleValue)
 {
-    // Perillas
     for (auto* k : { &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
                      &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
                      &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
@@ -306,31 +400,37 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
                      &master,
                      &lfo1Rate, &lfo1Depth, &lfo1Phase,
                      &lfo2Rate, &lfo2Depth, &lfo2Phase,
-                     &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt })
+                     &driveAmount, &driveTone, &driveMix,
+                     &chorusRate, &chorusDepth, &chorusMix,
+                     &delayTime, &delayFeedback, &delayMix,
+                     &reverbSize, &reverbDamp, &reverbMix })
         k->setScale (scaleValue);
 
-    // Info displays
     for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
                      &ampEnvInfo, &filtEnvInfo, &masterInfo,
-                     &lfoInfo, &modInfo })
+                     &lfoInfo, &modInfo, &fxInfo })
         d->setScale (scaleValue);
 
-    // ButtonSelectors
+    for (auto* h : { &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt })
+        h->setScale (scaleValue);
+
     osc1Wave  ->setScale (scaleValue);
     osc2Wave  ->setScale (scaleValue);
     filterType->setScale (scaleValue);
 
-    // ComboBoxSelectors
-    lfo1Wave->setScale (scaleValue);
-    lfo2Wave->setScale (scaleValue);
-    mod1Src ->setScale (scaleValue);
-    mod1Dst ->setScale (scaleValue);
-    mod2Src ->setScale (scaleValue);
-    mod2Dst ->setScale (scaleValue);
-    mod3Src ->setScale (scaleValue);
-    mod3Dst ->setScale (scaleValue);
-    mod4Src ->setScale (scaleValue);
-    mod4Dst ->setScale (scaleValue);
+    lfo1Wave->setScale (scaleValue);  lfo2Wave->setScale (scaleValue);
+    lfo1Sync->setScale (scaleValue);  lfo2Sync->setScale (scaleValue);
+    delaySync->setScale (scaleValue);
+
+    mod1Src->setScale (scaleValue);  mod1Dst->setScale (scaleValue);
+    mod2Src->setScale (scaleValue);  mod2Dst->setScale (scaleValue);
+    mod3Src->setScale (scaleValue);  mod3Dst->setScale (scaleValue);
+    mod4Src->setScale (scaleValue);  mod4Dst->setScale (scaleValue);
+
+    driveOn ->setScale (scaleValue);
+    chorusOn->setScale (scaleValue);
+    delayOn ->setScale (scaleValue);
+    reverbOn->setScale (scaleValue);
 }
 
 void PPGWave3Editor::paint (juce::Graphics& g)
@@ -342,7 +442,7 @@ void PPGWave3Editor::paint (juce::Graphics& g)
     g.fillRect (top);
     g.setColour (juce::Colour (0xffffaa00));
     g.setFont (juce::FontOptions (12.0f * currentScale, juce::Font::bold));
-    g.drawText ("PPG WAVE 3 CLONE   /   PHASE 4.1",
+    g.drawText ("PPG WAVE 3 CLONE   /   PHASE 5",
                 top.reduced (10, 0), juce::Justification::centredLeft);
 
     drawSection (g, osc1Area,    "OSCILLATOR 1");
@@ -350,6 +450,7 @@ void PPGWave3Editor::paint (juce::Graphics& g)
     drawSection (g, filterArea,  "FILTER");
     drawSection (g, lfoArea,     "LFO");
     drawSection (g, modArea,     "MOD MATRIX");
+    drawSection (g, fxArea,      "EFFECTS");
     drawSection (g, ampEnvArea,  "AMP ENV");
     drawSection (g, filtEnvArea, "FILTER ENV");
     drawSection (g, masterArea,  "MASTER");
@@ -378,20 +479,22 @@ void PPGWave3Editor::resized()
 
     const int h      = r.getHeight();
     const int gap    = 6;
-    const int availH = h - 5 * gap;
+    const int availH = h - 7 * gap;
 
     const float availHf = (float) availH;
-    const int oscH  = (int) (availHf * 0.1407f);
-    const int filtH = (int) (availHf * 0.1407f);
-    const int lfoH  = (int) (availHf * 0.1529f);
-    const int modH  = (int) (availHf * 0.2370f);
-    const int envH  = availH - 2 * oscH - filtH - lfoH - modH;
+    const int oscH  = (int) (availHf * 0.105f);
+    const int filtH = (int) (availHf * 0.105f);
+    const int lfoH  = (int) (availHf * 0.115f);
+    const int modH  = (int) (availHf * 0.175f);
+    const int fxH   = (int) (availHf * 0.175f);
+    const int envH  = availH - 2 * oscH - filtH - lfoH - modH - fxH;
 
     osc1Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
     osc2Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
     filterArea = r.removeFromTop (filtH);       r.removeFromTop (gap);
     lfoArea = r.removeFromTop (lfoH);           r.removeFromTop (gap);
     modArea = r.removeFromTop (modH);           r.removeFromTop (gap);
+    fxArea  = r.removeFromTop (fxH);            r.removeFromTop (gap);
 
     auto bottomRow = r.removeFromTop (envH);
     {
@@ -410,22 +513,27 @@ void PPGWave3Editor::resized()
         return juce::jlimit (90, 260, (int) ((float) sectionW * 0.22f));
     };
 
+    auto titleRowFor = [&] (juce::Rectangle<int> area, InfoDisplay& info,
+                            juce::Rectangle<int>& innerOut)
+    {
+        innerOut = area.reduced (8);
+        auto titleRow = innerOut.removeFromTop (
+            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
+        info.setBounds (titleRow.removeFromRight (
+            infoWidthFor (area.getWidth())).reduced (0, 1));
+        innerOut.removeFromTop (1);
+    };
+
     // -------- Osciladores --------
     auto layoutOscSection = [&] (juce::Rectangle<int> area,
                                  InfoDisplay& info, ButtonSelector& waveSel,
                                  RotaryKnob& kPos, RotaryKnob& kOct, RotaryKnob& kSemi,
                                  RotaryKnob& kFine, RotaryKnob& kLevel)
     {
-        auto inner = area.reduced (8);
-        auto titleRow = inner.removeFromTop (
-            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
-        info.setBounds (titleRow.removeFromRight (
-            infoWidthFor (area.getWidth())).reduced (0, 1));
-        inner.removeFromTop (1);
-
+        juce::Rectangle<int> inner;
+        titleRowFor (area, info, inner);
         const int selW = (int) ((float) inner.getWidth() * 0.30f);
         waveSel.setBounds (inner.removeFromLeft (selW).reduced (2, 3));
-
         inner.removeFromLeft (4);
         const int kw = inner.getWidth() / 5;
         kPos  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
@@ -442,13 +550,8 @@ void PPGWave3Editor::resized()
 
     // -------- Filtro --------
     {
-        auto inner = filterArea.reduced (8);
-        auto titleRow = inner.removeFromTop (
-            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
-        filterInfo.setBounds (titleRow.removeFromRight (
-            infoWidthFor (filterArea.getWidth())).reduced (0, 1));
-        inner.removeFromTop (1);
-
+        juce::Rectangle<int> inner;
+        titleRowFor (filterArea, filterInfo, inner);
         const int selW = (int) ((float) inner.getWidth() * 0.22f);
         filterType->setBounds (inner.removeFromLeft (selW).reduced (2, 3));
         inner.removeFromLeft (4);
@@ -459,23 +562,20 @@ void PPGWave3Editor::resized()
         filterKeyTrack.setBounds (inner.reduced (1, 0));
     }
 
-    // -------- LFO (con Phase) --------
+    // -------- LFO (con Sync) --------
     {
-        auto inner = lfoArea.reduced (8);
-        auto titleRow = inner.removeFromTop (
-            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
-        lfoInfo.setBounds (titleRow.removeFromRight (
-            infoWidthFor (lfoArea.getWidth())).reduced (0, 1));
-        inner.removeFromTop (1);
-
+        juce::Rectangle<int> inner;
+        titleRowFor (lfoArea, lfoInfo, inner);
         const int halfW = (inner.getWidth() - gap) / 2;
 
         auto layoutLFO = [&] (juce::Rectangle<int> area,
-                              ComboBoxSelector& w, RotaryKnob& rate,
-                              RotaryKnob& depth, RotaryKnob& phase)
+                              ComboBoxSelector& w, ComboBoxSelector& sync,
+                              RotaryKnob& rate, RotaryKnob& depth, RotaryKnob& phase)
         {
-            const int comboW = (int) ((float) area.getWidth() * 0.28f);
+            const int comboW = (int) ((float) area.getWidth() * 0.20f);
             w.setBounds (area.removeFromLeft (comboW).reduced (2, 0));
+            area.removeFromLeft (2);
+            sync.setBounds (area.removeFromLeft (comboW).reduced (2, 0));
             area.removeFromLeft (2);
             const int kw = area.getWidth() / 3;
             rate .setBounds (area.removeFromLeft (kw).reduced (1, 0));
@@ -487,26 +587,21 @@ void PPGWave3Editor::resized()
         inner.removeFromLeft (gap);
         auto lfo2Zone = inner;
 
-        layoutLFO (lfo1Zone, *lfo1Wave, lfo1Rate, lfo1Depth, lfo1Phase);
-        layoutLFO (lfo2Zone, *lfo2Wave, lfo2Rate, lfo2Depth, lfo2Phase);
+        layoutLFO (lfo1Zone, *lfo1Wave, *lfo1Sync, lfo1Rate, lfo1Depth, lfo1Phase);
+        layoutLFO (lfo2Zone, *lfo2Wave, *lfo2Sync, lfo2Rate, lfo2Depth, lfo2Phase);
     }
 
-    // -------- Mod Matrix --------
+    // -------- Mod Matrix (con HSlider) --------
     {
-        auto inner = modArea.reduced (8);
-        auto titleRow = inner.removeFromTop (
-            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
-        modInfo.setBounds (titleRow.removeFromRight (
-            infoWidthFor (modArea.getWidth())).reduced (0, 1));
-        inner.removeFromTop (1);
-
+        juce::Rectangle<int> inner;
+        titleRowFor (modArea, modInfo, inner);
         const int rowH = inner.getHeight() / 4;
 
         auto layoutRow = [&] (juce::Rectangle<int> row,
-                              ComboBoxSelector& src, ComboBoxSelector& dst, RotaryKnob& amt)
+                              ComboBoxSelector& src, ComboBoxSelector& dst, HSlider& amt)
         {
-            const int srcW = (int) ((float) row.getWidth() * 0.40f);
-            const int dstW = (int) ((float) row.getWidth() * 0.40f);
+            const int srcW = (int) ((float) row.getWidth() * 0.35f);
+            const int dstW = (int) ((float) row.getWidth() * 0.35f);
             src.setBounds (row.removeFromLeft (srcW).reduced (2, 1));
             dst.setBounds (row.removeFromLeft (dstW).reduced (2, 1));
             amt.setBounds (row.reduced (2, 1));
@@ -518,14 +613,62 @@ void PPGWave3Editor::resized()
         layoutRow (inner,                        *mod4Src, *mod4Dst, mod4Amt);
     }
 
+    // -------- Effects (4 sub-secciones: Drive / Chorus / Delay / Reverb) --------
+    {
+        juce::Rectangle<int> inner;
+        titleRowFor (fxArea, fxInfo, inner);
+        const int rowH = inner.getHeight() / 4;
+        const int toggleW = 70;
+
+        // Drive
+        {
+            auto row = inner.removeFromTop (rowH);
+            driveOn->setBounds (row.removeFromLeft (toggleW).reduced (2, 4));
+            row.removeFromLeft (2);
+            const int kw = row.getWidth() / 3;
+            driveAmount.setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            driveTone  .setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            driveMix   .setBounds (row.reduced (1, 0));
+        }
+        // Chorus
+        {
+            auto row = inner.removeFromTop (rowH);
+            chorusOn->setBounds (row.removeFromLeft (toggleW).reduced (2, 4));
+            row.removeFromLeft (2);
+            const int kw = row.getWidth() / 3;
+            chorusRate .setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            chorusDepth.setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            chorusMix  .setBounds (row.reduced (1, 0));
+        }
+        // Delay
+        {
+            auto row = inner.removeFromTop (rowH);
+            delayOn->setBounds (row.removeFromLeft (toggleW).reduced (2, 4));
+            row.removeFromLeft (2);
+            const int syncW = (int) ((float) row.getWidth() * 0.22f);
+            delaySync->setBounds (row.removeFromLeft (syncW).reduced (2, 0));
+            row.removeFromLeft (2);
+            const int kw = row.getWidth() / 3;
+            delayTime    .setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            delayFeedback.setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            delayMix     .setBounds (row.reduced (1, 0));
+        }
+        // Reverb
+        {
+            auto row = inner;
+            reverbOn->setBounds (row.removeFromLeft (toggleW).reduced (2, 4));
+            row.removeFromLeft (2);
+            const int kw = row.getWidth() / 3;
+            reverbSize.setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            reverbDamp.setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            reverbMix .setBounds (row.reduced (1, 0));
+        }
+    }
+
     // -------- Amp Env --------
     {
-        auto inner = ampEnvArea.reduced (8);
-        auto titleRow = inner.removeFromTop (
-            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
-        ampEnvInfo.setBounds (titleRow.removeFromRight (
-            infoWidthFor (ampEnvArea.getWidth())).reduced (0, 1));
-        inner.removeFromTop (1);
+        juce::Rectangle<int> inner;
+        titleRowFor (ampEnvArea, ampEnvInfo, inner);
         const int kw = inner.getWidth() / 4;
         ampA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
         ampD.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
@@ -535,12 +678,8 @@ void PPGWave3Editor::resized()
 
     // -------- Filter Env --------
     {
-        auto inner = filtEnvArea.reduced (8);
-        auto titleRow = inner.removeFromTop (
-            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
-        filtEnvInfo.setBounds (titleRow.removeFromRight (
-            infoWidthFor (filtEnvArea.getWidth())).reduced (0, 1));
-        inner.removeFromTop (1);
+        juce::Rectangle<int> inner;
+        titleRowFor (filtEnvArea, filtEnvInfo, inner);
         const int kw = inner.getWidth() / 4;
         filtA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
         filtD.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
