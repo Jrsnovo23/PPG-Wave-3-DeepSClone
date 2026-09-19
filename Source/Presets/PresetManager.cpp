@@ -202,10 +202,13 @@ namespace presets
             const auto id = prop.name.toString();
             if (auto* param = apvts.getParameter (id))
             {
-                const float targetValue = (float) prop.value;
-                const auto& range = param->getNormalisableRange();
-                const float normalized = range.convertTo0to1 (targetValue);
-                param->setValueNotifyingHost (normalized);
+                if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param))
+                {
+                    const float targetValue = (float) prop.value;
+                    const auto& range = ranged->getNormalisableRange();
+                    const float normalized = range.convertTo0to1 (targetValue);
+                    param->setValueNotifyingHost (normalized);
+                }
             }
         }
     }
@@ -219,9 +222,12 @@ namespace presets
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             {
-                const float norm = p->getValue();
-                const float real = p->getNormalisableRange().convertFrom0to1 (norm);
-                params->setProperty (withId->paramID, real);
+                if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
+                {
+                    const float norm = p->getValue();
+                    const float real = ranged->getNormalisableRange().convertFrom0to1 (norm);
+                    params->setProperty (withId->paramID, real);
+                }
             }
         }
 
@@ -240,7 +246,6 @@ namespace presets
 
         if (info.isFactory)
         {
-            // Re-parsear el JSON del factory
             int i = 0;
             for (auto* jsonStr : kFactoryJSON)
             {
@@ -308,13 +313,13 @@ namespace presets
 
     juce::String PresetManager::getCurrentName() const
     {
-        if (allPresets.isEmpty()) return "—";
+        if (allPresets.isEmpty()) return "-";
         return allPresets.getReference (currentIndex).name;
     }
 
     juce::String PresetManager::getCurrentCategory() const
     {
-        if (allPresets.isEmpty()) return "—";
+        if (allPresets.isEmpty()) return "-";
         return allPresets.getReference (currentIndex).category;
     }
 }
