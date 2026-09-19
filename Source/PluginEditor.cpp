@@ -31,11 +31,49 @@ void PPGWave3Editor::InfoDisplay::paint (juce::Graphics& g)
     }
     else
     {
-        auto nameArea = textArea.removeFromLeft (
-            (int) ((float) textArea.getWidth() * 0.55f));
+        auto nameArea = textArea.removeFromLeft ((int) ((float) textArea.getWidth() * 0.55f));
         g.drawText (paramName,  nameArea, juce::Justification::centredLeft);
         g.drawText (paramValue, textArea, juce::Justification::centredRight);
     }
+}
+
+// ==================== PresetDisplay ====================
+
+void PPGWave3Editor::PresetDisplay::setInfo (const juce::String& name,
+                                             const juce::String& category,
+                                             bool factory)
+{
+    presetName     = name;
+    presetCategory = category;
+    isFactory      = factory;
+    repaint();
+}
+
+void PPGWave3Editor::PresetDisplay::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat();
+
+    g.setColour (juce::Colour (0xff0a0a0a));
+    g.fillRoundedRectangle (r, 3.0f);
+
+    g.setColour (juce::Colour (0xffffaa00));
+    g.drawRoundedRectangle (r.reduced (0.5f), 3.0f, 1.0f);
+
+    auto inner = getLocalBounds().reduced (6, 2);
+
+    // Nombre grande arriba
+    g.setColour (juce::Colour (0xffffcc55));
+    g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+    g.drawText (presetName, inner, juce::Justification::centred, false);
+
+    // Categoría pequeña abajo
+    auto catRow = inner.removeFromBottom (10);
+    g.setColour (isFactory ? juce::Colour (0xffffaa00)
+                            : juce::Colour (0xff2ecc40));
+    g.setFont (juce::FontOptions (8.0f, juce::Font::plain));
+    const auto tag = isFactory ? "FACTORY" : "USER";
+    g.drawText (presetCategory.toUpperCase() + "  ·  " + tag,
+                catRow, juce::Justification::centred, false);
 }
 
 // ==================== RotaryKnob ====================
@@ -269,6 +307,12 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     : AudioProcessorEditor (&p),
       processorRef (p),
       apvts (p.apvts),
+      presetManager (p.apvts),
+      prevBtn ("<"),
+      nextBtn (">"),
+      loadBtn ("LOAD"),
+      saveBtn ("SAVE"),
+      browseBtn ("BROWSE"),
       osc1Wave (std::make_unique<ButtonSelector> (p.apvts, ParamIDs::osc1Wave,
                   juce::StringArray { "SIN", "TRI", "SAW", "SQR" })),
       osc1Preview (p.apvts, ParamIDs::osc1Wave, ParamIDs::osc1Pos),
@@ -349,6 +393,22 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 {
     juce::ignoreUnused (processorRef, apvts);
 
+    // === Preset bar ===
+    prevBtn.setConnectedEdges (juce::Button::ConnectedOnRight);
+    nextBtn.setConnectedEdges (juce::Button::ConnectedOnLeft);
+    prevBtn.onClick = [this]() { onPrevPreset(); };
+    nextBtn.onClick = [this]() { onNextPreset(); };
+    loadBtn.onClick = [this]() { onLoadPreset(); };
+    saveBtn.onClick = [this]() { onSavePreset(); };
+    browseBtn.onClick = [this]() { onBrowsePreset(); };
+
+    for (auto* b : { &prevBtn, &nextBtn, &loadBtn, &saveBtn, &browseBtn })
+        addAndMakeVisible (b);
+
+    addAndMakeVisible (presetDisplay);
+
+    updatePresetDisplay();
+
     // Visualizadores
     addAndMakeVisible (osc1Preview);
     addAndMakeVisible (osc2Preview);
@@ -397,9 +457,8 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 
     setLookAndFeel (&ppgLnf);
 
-    setResizable (true, true);
-    setResizeLimits (900, 900, 1400, 1600);
-    setSize (980, 1020);
+    setResizable (false, false);
+    setSize (1280, 860);
 }
 
 PPGWave3Editor::~PPGWave3Editor()
@@ -409,7 +468,7 @@ PPGWave3Editor::~PPGWave3Editor()
 
 float PPGWave3Editor::computeScale() const
 {
-    const float refH = 1020.0f;
+    const float refH = 860.0f;
     return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
 }
 
@@ -456,11 +515,105 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
     reverbOn->setScale (scaleValue);
 }
 
+// ==================== Preset actions ====================
+
+void PPGWave3Editor::updatePresetDisplay()
+{
+    const int idx = presetManager.getCurrentIndex();
+    const auto& list = presetManager.getAllPresets();
+
+    if (idx >= 0 && idx < list.size())
+    {
+        const auto& info = list.getReference (idx);
+        presetDisplay.setInfo (info.name, info.category, info.isFactory);
+    }
+    else
+    {
+        presetDisplay.setInfo (presetManager.getCurrentName(),
+                               presetManager.getCurrentCategory(), true);
+    }
+}
+
+void PPGWave3Editor::onPrevPreset()
+{
+    presetManager.prev();
+    updatePresetDisplay();
+}
+
+void PPGWave3Editor::onNextPreset()
+{
+    presetManager.next();
+    updatePresetDisplay();
+}
+
+void PPGWave3Editor::onLoadPreset()
+{
+    presetManager.refresh();
+    presetManager.loadByIndex (presetManager.getCurrentIndex());
+    updatePresetDisplay();
+}
+
+void PPGWave3Editor::onSavePreset()
+{
+    auto* window = new juce::AlertWindow ("Save Preset",
+                                          "Enter preset name and category:",
+                                          juce::MessageBoxIconType::NoIcon);
+    window->addTextEditor ("name", presetManager.getCurrentName(), "Name:");
+    window->addComboBox ("cat",
+                         { "Bass","Lead","Pad","Keys","Bell","Pluck",
+                           "Sequence","FX","Atmospheric","Digital",
+                           "Experimental","Percussive" },
+                         "Category:");
+    window->addButton ("Save",   1, juce::KeyPress (juce::KeyPress::returnKey));
+    window->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+
+    window->enterModalState (true,
+        juce::ModalCallbackFunction::create ([this, window] (int result)
+        {
+            if (result == 1)
+            {
+                auto name = window->getTextEditorContents ("name");
+                auto* cb  = window->getComboBoxComponent ("cat");
+                auto cat  = cb != nullptr ? cb->getText() : juce::String ("User");
+
+                if (name.isNotEmpty())
+                {
+                    presetManager.saveUserPreset (name, cat);
+                    updatePresetDisplay();
+                }
+            }
+        }),
+        true);
+}
+
+void PPGWave3Editor::onBrowsePreset()
+{
+    fileChooser = std::make_unique<juce::FileChooser> (
+        "Load Preset",
+        presetManager.getUserPresetDirectory(),
+        "*.json");
+
+    fileChooser->launchAsync (
+        juce::FileBrowserComponent::openMode |
+        juce::FileBrowserComponent::canSelectFiles,
+        [this] (const juce::FileChooser& fc)
+        {
+            auto file = fc.getResult();
+            if (file.existsAsFile())
+            {
+                presetManager.loadFromFile (file);
+                updatePresetDisplay();
+            }
+        });
+}
+
+// ==================== paint / layout ====================
+
 void PPGWave3Editor::paint (juce::Graphics& g)
 {
     g.fillAll (PPGLookAndFeel::bgApp());
 
-    auto top = getLocalBounds().removeFromTop (36);
+    auto top = getLocalBounds().removeFromTop (72);
     {
         juce::ColourGradient grad (juce::Colour (0xff0a0a0a),
                                    0.0f, (float) top.getY(),
@@ -472,7 +625,8 @@ void PPGWave3Editor::paint (juce::Graphics& g)
         g.setColour (PPGLookAndFeel::accent());
         g.fillRect (top.getX(), top.getBottom() - 1, top.getWidth(), 1);
 
-        drawLogo (g, top.reduced (10, 4));
+        auto logoRow = top.removeFromTop (36);
+        drawLogo (g, logoRow.reduced (10, 4));
     }
 
     drawSection (g, osc1Area,    "OSCILLATOR 1");
@@ -557,7 +711,31 @@ void PPGWave3Editor::resized()
     applyScaleToAll (currentScale);
 
     auto r = getLocalBounds();
-    r.removeFromTop (36);
+
+    // === Header con logo + preset bar ===
+    auto header = r.removeFromTop (72);
+
+    // Fila 2 (preset bar) — altura 36
+    auto presetRow = header.removeFromBottom (36).reduced (10, 4);
+
+    // Botones laterales
+    const int navW   = 32;
+    const int smallW = 70;
+    const int medW   = 90;
+
+    prevBtn.setBounds (presetRow.removeFromLeft (navW));
+    nextBtn.setBounds (presetRow.removeFromLeft (navW));
+    presetRow.removeFromLeft (10);
+
+    browseBtn.setBounds (presetRow.removeFromRight (medW));
+    presetRow.removeFromRight (4);
+    saveBtn  .setBounds (presetRow.removeFromRight (smallW));
+    presetRow.removeFromRight (4);
+    loadBtn  .setBounds (presetRow.removeFromRight (smallW));
+    presetRow.removeFromRight (10);
+
+    presetDisplay.setBounds (presetRow);
+
     r.reduce (6, 6);
 
     const int h      = r.getHeight();
