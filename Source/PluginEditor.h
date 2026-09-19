@@ -1,17 +1,19 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
+#include "../UI/PPGLookAndFeel.h"
 
 class PPGWave3Editor : public juce::AudioProcessorEditor
 {
 public:
     explicit PPGWave3Editor (PPGWave3Processor&);
-    ~PPGWave3Editor() override = default;
+    ~PPGWave3Editor() override;
 
     void paint   (juce::Graphics&) override;
     void resized () override;
 
 private:
+    // ---------- InfoDisplay ----------
     class InfoDisplay : public juce::Component
     {
     public:
@@ -43,7 +45,6 @@ private:
         float         scale = 1.0f;
     };
 
-    // NUEVO: slider horizontal compacto para la columna AMT de la matriz
     class HSlider : public juce::Component
     {
     public:
@@ -98,7 +99,6 @@ private:
         float          scale = 1.0f;
     };
 
-    // NUEVO: ToggleButton (para los "On" de efectos)
     class ToggleButton : public juce::Component
     {
     public:
@@ -119,13 +119,17 @@ private:
 
     void  drawSection (juce::Graphics& g, juce::Rectangle<int> area,
                        const juce::String& title) const;
+    void  drawLogo (juce::Graphics& g, juce::Rectangle<int> area) const;
     float computeScale() const;
     void  applyScaleToAll (float s);
 
     PPGWave3Processor& processorRef;
     juce::AudioProcessorValueTreeState& apvts;
 
-    // Info displays (ahora 9: uno por sección + efectos)
+    // LookAndFeel PPG personalizado
+    PPGLookAndFeel ppgLnf;
+
+    // Info displays
     InfoDisplay osc1Info, osc2Info, filterInfo;
     InfoDisplay ampEnvInfo, filtEnvInfo, masterInfo;
     InfoDisplay lfoInfo, modInfo, fxInfo;
@@ -157,26 +161,20 @@ private:
     RotaryKnob lfo2Rate, lfo2Depth, lfo2Phase;
     std::unique_ptr<ComboBoxSelector> lfo2Sync;
 
-    // Mod Matrix — 4 slots (ahora con HSlider para AMT)
+    // Mod Matrix
     std::unique_ptr<ComboBoxSelector> mod1Src, mod1Dst;  HSlider mod1Amt;
     std::unique_ptr<ComboBoxSelector> mod2Src, mod2Dst;  HSlider mod2Amt;
     std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  HSlider mod3Amt;
     std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  HSlider mod4Amt;
 
-    // FX: Drive
+    // FX
     std::unique_ptr<ToggleButton> driveOn;
     RotaryKnob driveAmount, driveTone, driveMix;
-
-    // FX: Chorus
     std::unique_ptr<ToggleButton> chorusOn;
     RotaryKnob chorusRate, chorusDepth, chorusMix;
-
-    // FX: Delay
     std::unique_ptr<ToggleButton> delayOn;
     std::unique_ptr<ComboBoxSelector> delaySync;
     RotaryKnob delayTime, delayFeedback, delayMix;
-
-    // FX: Reverb
     std::unique_ptr<ToggleButton> reverbOn;
     RotaryKnob reverbSize, reverbDamp, reverbMix;
 
