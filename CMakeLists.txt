@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PPGWave3Clone VERSION 0.3.0 LANGUAGES C CXX)
+project(PPGWave3Clone VERSION 0.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,6 +41,7 @@ target_sources(PPGWave3Clone
         Source/Synth/SynthVoice.cpp
         Source/UI/PPGLookAndFeel.cpp
         Source/UI/Visualizers.cpp
+        Source/Presets/PresetManager.cpp
 )
 
 target_include_directories(PPGWave3Clone PRIVATE Source)
