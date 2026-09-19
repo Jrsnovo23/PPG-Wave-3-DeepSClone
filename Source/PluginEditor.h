@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
 #include "UI/PPGLookAndFeel.h"
+#include "UI/Visualizers.h"
 
 class PPGWave3Editor : public juce::AudioProcessorEditor
 {
@@ -13,7 +14,6 @@ public:
     void resized () override;
 
 private:
-    // ---------- InfoDisplay ----------
     class InfoDisplay : public juce::Component
     {
     public:
@@ -125,19 +125,18 @@ private:
 
     PPGWave3Processor& processorRef;
     juce::AudioProcessorValueTreeState& apvts;
-
-    // LookAndFeel PPG personalizado
     PPGLookAndFeel ppgLnf;
 
-    // Info displays
     InfoDisplay osc1Info, osc2Info, filterInfo;
     InfoDisplay ampEnvInfo, filtEnvInfo, masterInfo;
     InfoDisplay lfoInfo, modInfo, fxInfo;
 
     // Osciladores
     std::unique_ptr<ButtonSelector> osc1Wave;
+    ui::WavetablePreview osc1Preview;
     RotaryKnob osc1Pos, osc1Oct, osc1Semi, osc1Fine, osc1Level;
     std::unique_ptr<ButtonSelector> osc2Wave;
+    ui::WavetablePreview osc2Preview;
     RotaryKnob osc2Pos, osc2Oct, osc2Semi, osc2Fine, osc2Level;
 
     // Filtro
@@ -145,19 +144,24 @@ private:
     RotaryKnob filterCutoff, filterReso, filterEnvAmt, filterKeyTrack;
 
     // Envelopes
+    ui::EnvelopeDisplay ampEnvDisplay;
+    ui::EnvelopeDisplay filtEnvDisplay;
     RotaryKnob ampA, ampD, ampS, ampR;
     RotaryKnob filtA, filtD, filtS, filtR;
 
     // Master
     RotaryKnob master;
+    ui::LevelMeter masterMeter;
 
     // LFO 1
     std::unique_ptr<ComboBoxSelector> lfo1Wave;
+    ui::LFODisplay lfo1Display;
     RotaryKnob lfo1Rate, lfo1Depth, lfo1Phase;
     std::unique_ptr<ComboBoxSelector> lfo1Sync;
 
     // LFO 2
     std::unique_ptr<ComboBoxSelector> lfo2Wave;
+    ui::LFODisplay lfo2Display;
     RotaryKnob lfo2Rate, lfo2Depth, lfo2Phase;
     std::unique_ptr<ComboBoxSelector> lfo2Sync;
 
@@ -178,7 +182,6 @@ private:
     std::unique_ptr<ToggleButton> reverbOn;
     RotaryKnob reverbSize, reverbDamp, reverbMix;
 
-    // Áreas
     juce::Rectangle<int> osc1Area, osc2Area, filterArea;
     juce::Rectangle<int> lfoArea, modArea, fxArea;
     juce::Rectangle<int> ampEnvArea, filtEnvArea, masterArea;
