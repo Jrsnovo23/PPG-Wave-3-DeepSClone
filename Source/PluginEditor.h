@@ -1,7 +1,7 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
-#include "../UI/PPGLookAndFeel.h"
+#include "UI/PPGLookAndFeel.h"
 
 class PPGWave3Editor : public juce::AudioProcessorEditor
 {
