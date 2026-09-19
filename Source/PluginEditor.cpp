@@ -1,7 +1,6 @@
 #include "PluginEditor.h"
 #include "ParameterIDs.h"
-#include "../UI/PPGLookAndFeel.h"
-
+#include "UI/PPGLookAndFeel.h"
 // ==================== InfoDisplay ====================
 
 void PPGWave3Editor::InfoDisplay::setInfo (const juce::String& name, const juce::String& value)
