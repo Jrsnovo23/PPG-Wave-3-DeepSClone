@@ -61,18 +61,16 @@ void PPGWave3Editor::PresetDisplay::paint (juce::Graphics& g)
 
     auto inner = getLocalBounds().reduced (6, 2);
 
-    // Nombre grande arriba
     g.setColour (juce::Colour (0xffffcc55));
     g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
     g.drawText (presetName, inner, juce::Justification::centred, false);
 
-    // Categoría pequeña abajo
     auto catRow = inner.removeFromBottom (10);
     g.setColour (isFactory ? juce::Colour (0xffffaa00)
                             : juce::Colour (0xff2ecc40));
     g.setFont (juce::FontOptions (8.0f, juce::Font::plain));
     const auto tag = isFactory ? "FACTORY" : "USER";
-    g.drawText (presetCategory.toUpperCase() + "  ·  " + tag,
+    g.drawText (presetCategory.toUpperCase() + "  -  " + tag,
                 catRow, juce::Justification::centred, false);
 }
 
@@ -409,6 +407,27 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 
     updatePresetDisplay();
 
+    // === FX tab buttons ===
+    for (auto* b : { &driveTabBtn, &chorusTabBtn, &delayTabBtn, &reverbTabBtn })
+    {
+        b->setClickingTogglesState (false);
+        b->setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff1c1c1c));
+        b->setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffaa00));
+        b->setColour (juce::TextButton::textColourOffId,  juce::Colour (0xffaaaaaa));
+        b->setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
+        addAndMakeVisible (b);
+    }
+
+    driveTabBtn .setButtonText ("DIST");
+    chorusTabBtn.setButtonText ("CHORUS");
+    delayTabBtn .setButtonText ("DELAY");
+    reverbTabBtn.setButtonText ("REVERB");
+
+    driveTabBtn .onClick = [this]() { activeFxTab = 0; updateFxVisibility(); repaint(); };
+    chorusTabBtn.onClick = [this]() { activeFxTab = 1; updateFxVisibility(); repaint(); };
+    delayTabBtn .onClick = [this]() { activeFxTab = 2; updateFxVisibility(); repaint(); };
+    reverbTabBtn.onClick = [this]() { activeFxTab = 3; updateFxVisibility(); repaint(); };
+
     // Visualizadores
     addAndMakeVisible (osc1Preview);
     addAndMakeVisible (osc2Preview);
@@ -459,6 +478,9 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 
     setResizable (false, false);
     setSize (1280, 860);
+
+    // Activar primera pestaña
+    updateFxVisibility();
 }
 
 PPGWave3Editor::~PPGWave3Editor()
@@ -466,53 +488,40 @@ PPGWave3Editor::~PPGWave3Editor()
     setLookAndFeel (nullptr);
 }
 
-float PPGWave3Editor::computeScale() const
+// ==================== FX Tab visibility ====================
+
+void PPGWave3Editor::updateFxVisibility()
 {
-    const float refH = 860.0f;
-    return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
-}
+    const bool d  = (activeFxTab == 0);
+    const bool c  = (activeFxTab == 1);
+    const bool dl = (activeFxTab == 2);
+    const bool r  = (activeFxTab == 3);
 
-void PPGWave3Editor::applyScaleToAll (float scaleValue)
-{
-    for (auto* k : { &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
-                     &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
-                     &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
-                     &ampA, &ampD, &ampS, &ampR,
-                     &filtA, &filtD, &filtS, &filtR,
-                     &master,
-                     &lfo1Rate, &lfo1Depth, &lfo1Phase,
-                     &lfo2Rate, &lfo2Depth, &lfo2Phase,
-                     &driveAmount, &driveTone, &driveMix,
-                     &chorusRate, &chorusDepth, &chorusMix,
-                     &delayTime, &delayFeedback, &delayMix,
-                     &reverbSize, &reverbDamp, &reverbMix })
-        k->setScale (scaleValue);
+    driveOn    ->setVisible (d);
+    driveAmount.setVisible (d);
+    driveTone  .setVisible (d);
+    driveMix   .setVisible (d);
 
-    for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
-                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
-                     &lfoInfo, &modInfo, &fxInfo })
-        d->setScale (scaleValue);
+    chorusOn   ->setVisible (c);
+    chorusRate .setVisible (c);
+    chorusDepth.setVisible (c);
+    chorusMix  .setVisible (c);
 
-    for (auto* h : { &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt })
-        h->setScale (scaleValue);
+    delayOn    ->setVisible (dl);
+    delaySync  ->setVisible (dl);
+    delayTime  .setVisible (dl);
+    delayFeedback.setVisible (dl);
+    delayMix   .setVisible (dl);
 
-    osc1Wave  ->setScale (scaleValue);
-    osc2Wave  ->setScale (scaleValue);
-    filterType->setScale (scaleValue);
+    reverbOn   ->setVisible (r);
+    reverbSize .setVisible (r);
+    reverbDamp .setVisible (r);
+    reverbMix  .setVisible (r);
 
-    lfo1Wave->setScale (scaleValue);  lfo2Wave->setScale (scaleValue);
-    lfo1Sync->setScale (scaleValue);  lfo2Sync->setScale (scaleValue);
-    delaySync->setScale (scaleValue);
-
-    mod1Src->setScale (scaleValue);  mod1Dst->setScale (scaleValue);
-    mod2Src->setScale (scaleValue);  mod2Dst->setScale (scaleValue);
-    mod3Src->setScale (scaleValue);  mod3Dst->setScale (scaleValue);
-    mod4Src->setScale (scaleValue);  mod4Dst->setScale (scaleValue);
-
-    driveOn ->setScale (scaleValue);
-    chorusOn->setScale (scaleValue);
-    delayOn ->setScale (scaleValue);
-    reverbOn->setScale (scaleValue);
+    driveTabBtn .setToggleState (d,  juce::dontSendNotification);
+    chorusTabBtn.setToggleState (c,  juce::dontSendNotification);
+    delayTabBtn .setToggleState (dl, juce::dontSendNotification);
+    reverbTabBtn.setToggleState (r,  juce::dontSendNotification);
 }
 
 // ==================== Preset actions ====================
@@ -607,7 +616,58 @@ void PPGWave3Editor::onBrowsePreset()
         });
 }
 
-// ==================== paint / layout ====================
+// ==================== Scale ====================
+
+float PPGWave3Editor::computeScale() const
+{
+    const float refH = 860.0f;
+    return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
+}
+
+void PPGWave3Editor::applyScaleToAll (float scaleValue)
+{
+    for (auto* k : { &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
+                     &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
+                     &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
+                     &ampA, &ampD, &ampS, &ampR,
+                     &filtA, &filtD, &filtS, &filtR,
+                     &master,
+                     &lfo1Rate, &lfo1Depth, &lfo1Phase,
+                     &lfo2Rate, &lfo2Depth, &lfo2Phase,
+                     &driveAmount, &driveTone, &driveMix,
+                     &chorusRate, &chorusDepth, &chorusMix,
+                     &delayTime, &delayFeedback, &delayMix,
+                     &reverbSize, &reverbDamp, &reverbMix })
+        k->setScale (scaleValue);
+
+    for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
+                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
+                     &lfoInfo, &modInfo, &fxInfo })
+        d->setScale (scaleValue);
+
+    for (auto* h : { &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt })
+        h->setScale (scaleValue);
+
+    osc1Wave  ->setScale (scaleValue);
+    osc2Wave  ->setScale (scaleValue);
+    filterType->setScale (scaleValue);
+
+    lfo1Wave->setScale (scaleValue);  lfo2Wave->setScale (scaleValue);
+    lfo1Sync->setScale (scaleValue);  lfo2Sync->setScale (scaleValue);
+    delaySync->setScale (scaleValue);
+
+    mod1Src->setScale (scaleValue);  mod1Dst->setScale (scaleValue);
+    mod2Src->setScale (scaleValue);  mod2Dst->setScale (scaleValue);
+    mod3Src->setScale (scaleValue);  mod3Dst->setScale (scaleValue);
+    mod4Src->setScale (scaleValue);  mod4Dst->setScale (scaleValue);
+
+    driveOn ->setScale (scaleValue);
+    chorusOn->setScale (scaleValue);
+    delayOn ->setScale (scaleValue);
+    reverbOn->setScale (scaleValue);
+}
+
+// ==================== paint ====================
 
 void PPGWave3Editor::paint (juce::Graphics& g)
 {
@@ -705,6 +765,8 @@ void PPGWave3Editor::drawLogo (juce::Graphics& g, juce::Rectangle<int> area) con
                 juce::Justification::centredLeft, false);
 }
 
+// ==================== resized ====================
+
 void PPGWave3Editor::resized()
 {
     currentScale = computeScale();
@@ -712,13 +774,10 @@ void PPGWave3Editor::resized()
 
     auto r = getLocalBounds();
 
-    // === Header con logo + preset bar ===
+    // Header con logo + preset bar
     auto header = r.removeFromTop (72);
-
-    // Fila 2 (preset bar) — altura 36
     auto presetRow = header.removeFromBottom (36).reduced (10, 4);
 
-    // Botones laterales
     const int navW   = 32;
     const int smallW = 70;
     const int medW   = 90;
@@ -886,54 +945,78 @@ void PPGWave3Editor::resized()
         layoutRow (inner,                        *mod4Src, *mod4Dst, mod4Amt);
     }
 
-    // -------- Effects 2x2 --------
+    // -------- Effects con tabs --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (fxArea, fxInfo, inner);
 
-        const int rowH = inner.getHeight() / 2;
-        const int colW = inner.getWidth() / 2;
+        // Fila de tabs
+        auto tabRow = inner.removeFromTop (24);
+        const int tabW = tabRow.getWidth() / 4;
+        driveTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        chorusTabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        delayTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        reverbTabBtn.setBounds (tabRow.reduced (1, 0));
 
-        auto topRow = inner.removeFromTop (rowH);
-        auto botRow = inner;
+        inner.removeFromTop (6);
 
-        auto topLeft  = topRow.removeFromLeft (colW);
-        auto topRight = topRow;
-        auto botLeft  = botRow.removeFromLeft (colW);
-        auto botRight = botRow;
+        // Área de controles (común a todas las pestañas)
+        const auto controlsArea = inner.reduced (30, 4);
 
-        const int toggleW = 68;
-
-        auto layoutFxSimple = [] (juce::Rectangle<int> area, ToggleButton& on,
-                                  RotaryKnob& k1, RotaryKnob& k2, RotaryKnob& k3,
-                                  int toggleWidth)
+        // Helper: layout de toggle + 3 knobs en todo el ancho
+        auto layoutFullRow = [] (juce::Rectangle<int> area,
+                                 ToggleButton& on,
+                                 RotaryKnob& k1, RotaryKnob& k2, RotaryKnob& k3)
         {
-            area = area.reduced (4, 2);
-            on.setBounds (area.removeFromLeft (toggleWidth).reduced (2, 6));
-            area.removeFromLeft (2);
+            // Toggle alineado verticalmente al centro
+            auto toggleArea = area.removeFromLeft (110);
+            on.setBounds (toggleArea.withSizeKeepingCentre (
+                toggleArea.getWidth() - 12, 40));
+
+            area.removeFromLeft (24);
+
             const int kw = area.getWidth() / 3;
-            k1.setBounds (area.removeFromLeft (kw).reduced (1, 0));
-            k2.setBounds (area.removeFromLeft (kw).reduced (1, 0));
-            k3.setBounds (area.reduced (1, 0));
+            k1.setBounds (area.removeFromLeft (kw).reduced (6, 0));
+            k2.setBounds (area.removeFromLeft (kw).reduced (6, 0));
+            k3.setBounds (area.reduced (6, 0));
         };
 
-        layoutFxSimple (topLeft, *driveOn, driveAmount, driveTone, driveMix, toggleW);
-        layoutFxSimple (topRight, *chorusOn, chorusRate, chorusDepth, chorusMix, toggleW);
-
+        // Drive
         {
-            auto area = botLeft.reduced (4, 2);
-            delayOn->setBounds (area.removeFromLeft (toggleW).reduced (2, 6));
-            area.removeFromLeft (2);
-            const int syncW = (int) ((float) area.getWidth() * 0.22f);
-            delaySync->setBounds (area.removeFromLeft (syncW).reduced (2, 0));
-            area.removeFromLeft (2);
-            const int kw = area.getWidth() / 3;
-            delayTime    .setBounds (area.removeFromLeft (kw).reduced (1, 0));
-            delayFeedback.setBounds (area.removeFromLeft (kw).reduced (1, 0));
-            delayMix     .setBounds (area.reduced (1, 0));
+            auto area = controlsArea;
+            layoutFullRow (area, *driveOn, driveAmount, driveTone, driveMix);
         }
+        // Chorus
+        {
+            auto area = controlsArea;
+            layoutFullRow (area, *chorusOn, chorusRate, chorusDepth, chorusMix);
+        }
+        // Delay (con SYNC combo extra)
+        {
+            auto area = controlsArea;
 
-        layoutFxSimple (botRight, *reverbOn, reverbSize, reverbDamp, reverbMix, toggleW);
+            auto toggleArea = area.removeFromLeft (110);
+            delayOn->setBounds (toggleArea.withSizeKeepingCentre (
+                toggleArea.getWidth() - 12, 40));
+
+            area.removeFromLeft (16);
+
+            auto syncArea = area.removeFromLeft (150);
+            delaySync->setBounds (syncArea.withSizeKeepingCentre (
+                syncArea.getWidth() - 12, 52));
+
+            area.removeFromLeft (16);
+
+            const int kw = area.getWidth() / 3;
+            delayTime    .setBounds (area.removeFromLeft (kw).reduced (6, 0));
+            delayFeedback.setBounds (area.removeFromLeft (kw).reduced (6, 0));
+            delayMix     .setBounds (area.reduced (6, 0));
+        }
+        // Reverb
+        {
+            auto area = controlsArea;
+            layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix);
+        }
     }
 
     // -------- Amp Env --------
