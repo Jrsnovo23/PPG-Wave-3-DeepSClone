@@ -169,7 +169,7 @@ void PPGLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height,
                                    int /*buttonX*/, int /*buttonY*/, int /*buttonW*/, int /*buttonH*/,
                                    juce::ComboBox& box)
 {
-    const auto bounds = juce::Rectangle<int> (0, 0, width, height).toFloat().reduced (0.5f);
+    auto bounds = juce::Rectangle<int> (0, 0, width, height).toFloat().reduced (0.5f);
 
     g.setColour (juce::Colour (0xff252525));
     g.fillRoundedRectangle (bounds, 3.0f);
