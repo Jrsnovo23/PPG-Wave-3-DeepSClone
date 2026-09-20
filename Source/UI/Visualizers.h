@@ -6,17 +6,21 @@
 namespace ui
 {
     // ============================================================
-    // WavetablePreview — dibuja la forma de onda actual del osc.
+    // WavetablePreview — usa Timer a 30Hz para detectar cambios.
     // ============================================================
-    class WavetablePreview : public juce::Component
+    class WavetablePreview : public juce::Component,
+                             private juce::Timer
     {
     public:
         WavetablePreview (juce::AudioProcessorValueTreeState& apvts,
                           const juce::String& waveParamID,
                           const juce::String& posParamID);
+        ~WavetablePreview() override;
         void paint (juce::Graphics&) override;
     private:
+        void timerCallback() override;
         void refreshIfNeeded();
+
         juce::AudioProcessorValueTreeState& apvtsRef;
         juce::String waveId, posId;
         int   cachedWave = -1;
@@ -25,36 +29,47 @@ namespace ui
     };
 
     // ============================================================
-    // EnvelopeDisplay — dibuja la curva ADSR.
+    // EnvelopeDisplay
     // ============================================================
-    class EnvelopeDisplay : public juce::Component
+    class EnvelopeDisplay : public juce::Component,
+                            private juce::Timer
     {
     public:
         EnvelopeDisplay (juce::AudioProcessorValueTreeState& apvts,
                          const juce::String& aId, const juce::String& dId,
                          const juce::String& sId, const juce::String& rId);
+        ~EnvelopeDisplay() override;
         void paint (juce::Graphics&) override;
     private:
+        void timerCallback() override;
+
         juce::AudioProcessorValueTreeState& apvtsRef;
         juce::String attackId, decayId, sustainId, releaseId;
+
+        float cachedA = -1, cachedD = -1, cachedS = -1, cachedR = -1;
     };
 
     // ============================================================
-    // LFODisplay — dibuja la forma de onda del LFO (un ciclo).
+    // LFODisplay
     // ============================================================
-    class LFODisplay : public juce::Component
+    class LFODisplay : public juce::Component,
+                       private juce::Timer
     {
     public:
         LFODisplay (juce::AudioProcessorValueTreeState& apvts,
                     const juce::String& waveParamID);
+        ~LFODisplay() override;
         void paint (juce::Graphics&) override;
     private:
+        void timerCallback() override;
+
         juce::AudioProcessorValueTreeState& apvtsRef;
         juce::String waveId;
+        int cachedWave = -1;
     };
 
     // ============================================================
-    // LevelMeter — barra horizontal que muestra el nivel de salida.
+    // LevelMeter
     // ============================================================
     class LevelMeter : public juce::Component, private juce::Timer
     {
