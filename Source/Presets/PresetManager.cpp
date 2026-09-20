@@ -14,7 +14,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":8000,"filter_reso":0.0,"filter_env_amt":0.0,
             "amp_attack":0.005,"amp_decay":0.1,"amp_sustain":0.7,"amp_release":0.3,
             "filt_attack":0.005,"filt_decay":0.2,"filt_sustain":0.5,"filt_release":0.3,
-            "master_gain":0.7})",
+            "master_gain":0.7}})",
 
         // ================================================================
         // BASS
@@ -24,7 +24,7 @@ namespace presets
             "osc2_wave":0,"osc2_octave":1,"osc2_level":0.2,
             "filter_type":0,"filter_cutoff":500,"filter_reso":0.1,
             "amp_attack":0.005,"amp_decay":0.3,"amp_sustain":0.9,"amp_release":0.2,
-            "master_gain":0.75}})"],
+            "master_gain":0.75}})",
 
         R"({"name":"Acid Pulse","category":"Bass","author":"Factory","params":{
             "osc1_wave":3,"osc1_octave":1,"osc1_level":0.9,
@@ -32,7 +32,7 @@ namespace presets
             "amp_attack":0.001,"amp_decay":0.25,"amp_sustain":0.3,"amp_release":0.1,
             "filt_attack":0.001,"filt_decay":0.2,"filt_sustain":0.0,"filt_release":0.1,
             "drive_on":1,"drive_amount":5.0,"drive_tone":0.5,"drive_mix":0.4,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Digital Bass","category":"Bass","author":"Factory","params":{
             "osc1_wave":2,"osc1_octave":1,"osc1_level":0.85,
@@ -41,7 +41,7 @@ namespace presets
             "amp_attack":0.001,"amp_decay":0.4,"amp_sustain":0.6,"amp_release":0.15,
             "filt_attack":0.001,"filt_decay":0.3,"filt_sustain":0.2,"filt_release":0.15,
             "drive_on":1,"drive_amount":3.0,"drive_tone":0.5,"drive_mix":0.35,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         R"({"name":"Wobble Bass","category":"Bass","author":"Factory","params":{
             "osc1_wave":2,"osc1_octave":1,"osc1_level":0.9,
@@ -51,7 +51,7 @@ namespace presets
             "lfo1_wave":0,"lfo1_rate":2.5,"lfo1_depth":1.0,"lfo1_sync":4,
             "mod1_source":1,"mod1_dest":5,"mod1_amount":0.7,
             "drive_on":1,"drive_amount":4.0,"drive_tone":0.4,"drive_mix":0.4,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"FM Bass","category":"Bass","author":"Factory","params":{
             "osc1_wave":2,"osc1_octave":1,"osc1_level":0.8,
@@ -59,7 +59,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":1400,"filter_reso":0.3,"filter_env_amt":0.5,
             "amp_attack":0.001,"amp_decay":0.3,"amp_sustain":0.4,"amp_release":0.15,
             "filt_attack":0.001,"filt_decay":0.2,"filt_sustain":0.1,"filt_release":0.1,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         // ================================================================
         // PAD
@@ -71,7 +71,7 @@ namespace presets
             "amp_attack":0.7,"amp_decay":1.2,"amp_sustain":0.8,"amp_release":1.8,
             "chorus_on":1,"chorus_rate":0.35,"chorus_depth":0.5,"chorus_mix":0.45,
             "reverb_on":1,"reverb_size":0.7,"reverb_damp":0.5,"reverb_mix":0.35,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Crystal Pad","category":"Pad","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.6,"osc1_level":0.6,
@@ -79,7 +79,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":5500,"filter_reso":0.25,
             "amp_attack":0.9,"amp_decay":1.5,"amp_sustain":0.75,"amp_release":2.2,
             "reverb_on":1,"reverb_size":0.85,"reverb_damp":0.4,"reverb_mix":0.5,
-            "master_gain":0.55}})"],
+            "master_gain":0.55}})",
 
         R"({"name":"Motion Pad","category":"Pad","author":"Factory","params":{
             "osc1_wave":2,"osc1_pos":0.0,"osc1_level":0.65,
@@ -90,7 +90,7 @@ namespace presets
             "mod1_source":1,"mod1_dest":3,"mod1_amount":0.6,
             "mod2_source":2,"mod2_dest":4,"mod2_amount":0.5,
             "reverb_on":1,"reverb_size":0.75,"reverb_damp":0.4,"reverb_mix":0.4,
-            "master_gain":0.55}})"],
+            "master_gain":0.55}})",
 
         R"({"name":"Dark Pad","category":"Pad","author":"Factory","params":{
             "osc1_wave":2,"osc1_octave":1,"osc1_level":0.65,
@@ -98,7 +98,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":900,"filter_reso":0.35,
             "amp_attack":1.5,"amp_decay":2.0,"amp_sustain":0.85,"amp_release":3.0,
             "reverb_on":1,"reverb_size":0.8,"reverb_damp":0.6,"reverb_mix":0.45,
-            "master_gain":0.55}})"],
+            "master_gain":0.55}})",
 
         R"({"name":"String Pad","category":"Pad","author":"Factory","params":{
             "osc1_wave":2,"osc1_pos":0.1,"osc1_level":0.55,"osc1_fine":-3.0,
@@ -107,7 +107,7 @@ namespace presets
             "amp_attack":0.6,"amp_decay":1.0,"amp_sustain":0.85,"amp_release":1.5,
             "chorus_on":1,"chorus_rate":0.5,"chorus_depth":0.55,"chorus_mix":0.5,
             "reverb_on":1,"reverb_size":0.65,"reverb_damp":0.5,"reverb_mix":0.35,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         // ================================================================
         // LEAD
@@ -119,7 +119,7 @@ namespace presets
             "amp_attack":0.01,"amp_decay":0.2,"amp_sustain":0.85,"amp_release":0.3,
             "drive_on":1,"drive_amount":2.5,"drive_tone":0.6,"drive_mix":0.3,
             "delay_on":1,"delay_sync":4,"delay_feedback":0.35,"delay_mix":0.3,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         R"({"name":"Sync Lead","category":"Lead","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.3,"osc1_level":0.7,
@@ -127,7 +127,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":6000,"filter_reso":0.45,
             "amp_attack":0.005,"amp_decay":0.15,"amp_sustain":0.8,"amp_release":0.25,
             "delay_on":1,"delay_sync":4,"delay_feedback":0.4,"delay_mix":0.35,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         R"({"name":"Solo Lead","category":"Lead","author":"Factory","params":{
             "osc1_wave":2,"osc1_level":0.75,
@@ -137,7 +137,7 @@ namespace presets
             "lfo1_wave":0,"lfo1_rate":5.5,"lfo1_depth":0.3,"lfo1_sync":0,
             "mod1_source":1,"mod1_dest":1,"mod1_amount":0.15,
             "reverb_on":1,"reverb_size":0.4,"reverb_damp":0.6,"reverb_mix":0.25,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         R"({"name":"Hard Lead","category":"Lead","author":"Factory","params":{
             "osc1_wave":2,"osc1_level":0.8,
@@ -145,7 +145,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":6500,"filter_reso":0.4,
             "amp_attack":0.005,"amp_decay":0.2,"amp_sustain":0.85,"amp_release":0.3,
             "drive_on":1,"drive_amount":6.0,"drive_tone":0.5,"drive_mix":0.5,
-            "master_gain":0.55}})"],
+            "master_gain":0.55}})",
 
         R"({"name":"Soft Lead","category":"Lead","author":"Factory","params":{
             "osc1_wave":0,"osc1_level":0.7,
@@ -154,7 +154,7 @@ namespace presets
             "amp_attack":0.05,"amp_decay":0.3,"amp_sustain":0.8,"amp_release":0.5,
             "chorus_on":1,"chorus_rate":0.5,"chorus_depth":0.4,"chorus_mix":0.4,
             "reverb_on":1,"reverb_size":0.5,"reverb_damp":0.5,"reverb_mix":0.3,
-            "master_gain":0.7}})"],
+            "master_gain":0.7}})",
 
         // ================================================================
         // KEYS
@@ -166,7 +166,7 @@ namespace presets
             "amp_attack":0.001,"amp_decay":0.9,"amp_sustain":0.15,"amp_release":0.8,
             "filt_attack":0.001,"filt_decay":0.5,"filt_sustain":0.1,"filt_release":0.5,
             "chorus_on":1,"chorus_rate":0.3,"chorus_depth":0.35,"chorus_mix":0.35,
-            "master_gain":0.7}})"],
+            "master_gain":0.7}})",
 
         R"({"name":"Bell Keys","category":"Keys","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.7,"osc1_level":0.75,
@@ -174,7 +174,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":6000,"filter_reso":0.5,"filter_env_amt":-0.2,
             "amp_attack":0.001,"amp_decay":1.5,"amp_sustain":0.1,"amp_release":1.2,
             "reverb_on":1,"reverb_size":0.5,"reverb_damp":0.4,"reverb_mix":0.4,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Vintage Keys","category":"Keys","author":"Factory","params":{
             "osc1_wave":2,"osc1_level":0.55,"osc1_fine":-8.0,
@@ -182,7 +182,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":3500,"filter_reso":0.2,
             "amp_attack":0.005,"amp_decay":0.6,"amp_sustain":0.4,"amp_release":0.5,
             "chorus_on":1,"chorus_rate":0.4,"chorus_depth":0.5,"chorus_mix":0.5,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         R"({"name":"Digital Keys","category":"Keys","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.2,"osc1_level":0.7,
@@ -190,7 +190,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":7000,"filter_reso":0.3,
             "amp_attack":0.001,"amp_decay":0.5,"amp_sustain":0.2,"amp_release":0.4,
             "delay_on":1,"delay_sync":4,"delay_feedback":0.3,"delay_mix":0.25,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         R"({"name":"Organ Keys","category":"Keys","author":"Factory","params":{
             "osc1_wave":0,"osc1_level":0.5,
@@ -198,7 +198,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":5500,"filter_reso":0.15,
             "amp_attack":0.005,"amp_decay":0.05,"amp_sustain":0.95,"amp_release":0.15,
             "chorus_on":1,"chorus_rate":0.6,"chorus_depth":0.4,"chorus_mix":0.4,
-            "master_gain":0.7}})"],
+            "master_gain":0.7}})",
 
         // ================================================================
         // ARP
@@ -210,14 +210,14 @@ namespace presets
             "amp_attack":0.001,"amp_decay":0.18,"amp_sustain":0.0,"amp_release":0.15,
             "filt_attack":0.001,"filt_decay":0.15,"filt_sustain":0.0,"filt_release":0.1,
             "delay_on":1,"delay_sync":5,"delay_feedback":0.4,"delay_mix":0.35,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         R"({"name":"Fast Arp","category":"Arp","author":"Factory","params":{
             "osc1_wave":3,"osc1_level":0.75,
             "osc2_wave":2,"osc2_semi":7,"osc2_level":0.4,
             "filter_type":0,"filter_cutoff":5500,"filter_reso":0.35,
             "amp_attack":0.001,"amp_decay":0.1,"amp_sustain":0.0,"amp_release":0.1,
-            "master_gain":0.7}})"],
+            "master_gain":0.7}})",
 
         R"({"name":"Trance Arp","category":"Arp","author":"Factory","params":{
             "osc1_wave":2,"osc1_pos":0.3,"osc1_level":0.7,
@@ -227,7 +227,7 @@ namespace presets
             "filt_attack":0.001,"filt_decay":0.12,"filt_sustain":0.0,"filt_release":0.1,
             "delay_on":1,"delay_sync":4,"delay_feedback":0.5,"delay_mix":0.4,
             "reverb_on":1,"reverb_size":0.5,"reverb_damp":0.5,"reverb_mix":0.25,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Digital Arp","category":"Arp","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.5,"osc1_level":0.7,
@@ -236,7 +236,7 @@ namespace presets
             "amp_attack":0.001,"amp_decay":0.2,"amp_sustain":0.1,"amp_release":0.2,
             "lfo1_wave":6,"lfo1_rate":8.0,"lfo1_depth":0.5,
             "mod1_source":1,"mod1_dest":3,"mod1_amount":0.5,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         R"({"name":"Random Arp","category":"Arp","author":"Factory","params":{
             "osc1_wave":3,"osc1_level":0.7,
@@ -245,10 +245,10 @@ namespace presets
             "amp_attack":0.001,"amp_decay":0.15,"amp_sustain":0.0,"amp_release":0.15,
             "lfo1_wave":5,"lfo1_rate":6.0,"lfo1_depth":0.4,
             "mod1_source":1,"mod1_dest":1,"mod1_amount":0.2,
-            "master_gain":0.65}})"],
+            "master_gain":0.65}})",
 
         // ================================================================
-        // AMBIENT
+        // ATMOSPHERIC
         // ================================================================
         R"({"name":"Deep Space","category":"Atmospheric","author":"Factory","params":{
             "osc1_wave":0,"osc1_octave":0,"osc1_level":0.7,
@@ -256,7 +256,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":1200,"filter_reso":0.3,
             "amp_attack":2.0,"amp_decay":3.0,"amp_sustain":0.9,"amp_release":4.0,
             "reverb_on":1,"reverb_size":0.95,"reverb_damp":0.3,"reverb_mix":0.55,
-            "master_gain":0.5}})"],
+            "master_gain":0.5}})",
 
         R"({"name":"Sub Drone","category":"Atmospheric","author":"Factory","params":{
             "osc1_wave":0,"osc1_octave":0,"osc1_level":0.9,
@@ -266,7 +266,7 @@ namespace presets
             "lfo1_wave":0,"lfo1_rate":0.08,"lfo1_depth":0.4,
             "mod1_source":1,"mod1_dest":5,"mod1_amount":0.3,
             "reverb_on":1,"reverb_size":0.9,"reverb_damp":0.2,"reverb_mix":0.5,
-            "master_gain":0.5}})"],
+            "master_gain":0.5}})",
 
         R"({"name":"Ethereal","category":"Atmospheric","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.6,"osc1_level":0.55,
@@ -275,7 +275,7 @@ namespace presets
             "amp_attack":1.8,"amp_decay":2.5,"amp_sustain":0.7,"amp_release":3.5,
             "reverb_on":1,"reverb_size":0.9,"reverb_damp":0.4,"reverb_mix":0.55,
             "delay_on":1,"delay_sync":4,"delay_feedback":0.5,"delay_mix":0.3,
-            "master_gain":0.5}})"],
+            "master_gain":0.5}})",
 
         R"({"name":"Frozen","category":"Atmospheric","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.4,"osc1_level":0.6,
@@ -283,7 +283,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":5000,"filter_reso":0.5,
             "amp_attack":1.2,"amp_decay":2.0,"amp_sustain":0.75,"amp_release":3.0,
             "reverb_on":1,"reverb_size":0.85,"reverb_damp":0.35,"reverb_mix":0.5,
-            "master_gain":0.5}})"],
+            "master_gain":0.5}})",
 
         R"({"name":"Night Sky","category":"Atmospheric","author":"Factory","params":{
             "osc1_wave":0,"osc1_level":0.65,
@@ -293,7 +293,7 @@ namespace presets
             "lfo1_wave":0,"lfo1_rate":0.1,"lfo1_depth":0.5,
             "mod1_source":1,"mod1_dest":3,"mod1_amount":0.4,
             "reverb_on":1,"reverb_size":0.95,"reverb_damp":0.2,"reverb_mix":0.6,
-            "master_gain":0.5}})"],
+            "master_gain":0.5}})",
 
         // ================================================================
         // FX
@@ -308,7 +308,7 @@ namespace presets
             "mod2_source":1,"mod2_dest":5,"mod2_amount":0.5,
             "delay_on":1,"delay_sync":6,"delay_feedback":0.6,"delay_mix":0.4,
             "reverb_on":1,"reverb_size":0.6,"reverb_damp":0.3,"reverb_mix":0.3,
-            "master_gain":0.5}})"],
+            "master_gain":0.5}})",
 
         R"({"name":"Riser","category":"FX","author":"Factory","params":{
             "osc1_wave":2,"osc1_pos":0.0,"osc1_level":0.7,
@@ -317,7 +317,7 @@ namespace presets
             "amp_attack":0.5,"amp_decay":4.0,"amp_sustain":1.0,"amp_release":0.5,
             "filt_attack":0.5,"filt_decay":4.0,"filt_sustain":1.0,"filt_release":0.3,
             "reverb_on":1,"reverb_size":0.8,"reverb_damp":0.4,"reverb_mix":0.4,
-            "master_gain":0.55}})"],
+            "master_gain":0.55}})",
 
         R"({"name":"Noise Sweep","category":"FX","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.0,"osc1_level":0.6,
@@ -326,7 +326,7 @@ namespace presets
             "amp_attack":0.1,"amp_decay":3.0,"amp_sustain":0.0,"amp_release":0.5,
             "filt_attack":0.1,"filt_decay":3.0,"filt_sustain":0.0,"filt_release":0.3,
             "reverb_on":1,"reverb_size":0.7,"reverb_damp":0.3,"reverb_mix":0.35,
-            "master_gain":0.55}})"],
+            "master_gain":0.55}})",
 
         R"({"name":"Alien Voice","category":"FX","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.5,"osc1_level":0.7,
@@ -337,7 +337,7 @@ namespace presets
             "mod1_source":1,"mod1_dest":1,"mod1_amount":0.6,
             "mod2_source":1,"mod2_dest":5,"mod2_amount":0.5,
             "delay_on":1,"delay_sync":7,"delay_feedback":0.5,"delay_mix":0.35,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Glitch","category":"FX","author":"Factory","params":{
             "osc1_wave":3,"osc1_pos":0.7,"osc1_level":0.6,
@@ -348,7 +348,7 @@ namespace presets
             "mod1_source":1,"mod1_dest":3,"mod1_amount":0.7,
             "mod2_source":1,"mod2_dest":5,"mod2_amount":0.6,
             "delay_on":1,"delay_sync":8,"delay_feedback":0.6,"delay_mix":0.4,
-            "master_gain":0.55}})"],
+            "master_gain":0.55}})",
 
         // ================================================================
         // CHORD
@@ -360,7 +360,7 @@ namespace presets
             "amp_attack":0.6,"amp_decay":1.2,"amp_sustain":0.8,"amp_release":1.8,
             "chorus_on":1,"chorus_rate":0.4,"chorus_depth":0.4,"chorus_mix":0.4,
             "reverb_on":1,"reverb_size":0.7,"reverb_damp":0.5,"reverb_mix":0.35,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Minor Chord","category":"Chord","author":"Factory","params":{
             "osc1_wave":2,"osc1_level":0.55,
@@ -368,7 +368,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":3200,"filter_reso":0.25,
             "amp_attack":0.5,"amp_decay":1.0,"amp_sustain":0.8,"amp_release":1.5,
             "reverb_on":1,"reverb_size":0.65,"reverb_damp":0.5,"reverb_mix":0.35,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Stacked Saw","category":"Chord","author":"Factory","params":{
             "osc1_wave":2,"osc1_level":0.5,"osc1_fine":-10.0,
@@ -377,7 +377,7 @@ namespace presets
             "amp_attack":0.3,"amp_decay":0.9,"amp_sustain":0.85,"amp_release":1.2,
             "drive_on":1,"drive_amount":2.0,"drive_tone":0.6,"drive_mix":0.25,
             "reverb_on":1,"reverb_size":0.55,"reverb_damp":0.5,"reverb_mix":0.3,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Detuned Chord","category":"Chord","author":"Factory","params":{
             "osc1_wave":2,"osc1_pos":0.3,"osc1_level":0.5,"osc1_fine":-15.0,
@@ -386,7 +386,7 @@ namespace presets
             "amp_attack":0.5,"amp_decay":1.1,"amp_sustain":0.8,"amp_release":1.5,
             "chorus_on":1,"chorus_rate":0.5,"chorus_depth":0.5,"chorus_mix":0.45,
             "reverb_on":1,"reverb_size":0.7,"reverb_damp":0.45,"reverb_mix":0.35,
-            "master_gain":0.6}})"],
+            "master_gain":0.6}})",
 
         R"({"name":"Wide Chord","category":"Chord","author":"Factory","params":{
             "osc1_wave":2,"osc1_pos":0.4,"osc1_level":0.55,
