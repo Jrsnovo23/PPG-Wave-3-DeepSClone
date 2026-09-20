@@ -10,6 +10,17 @@ namespace ui
                                         const juce::String& posParamID)
         : apvtsRef (apvts), waveId (waveParamID), posId (posParamID)
     {
+        startTimerHz (30);
+    }
+
+    WavetablePreview::~WavetablePreview()
+    {
+        stopTimer();
+    }
+
+    void WavetablePreview::timerCallback()
+    {
+        refreshIfNeeded();
     }
 
     void WavetablePreview::refreshIfNeeded()
@@ -22,29 +33,41 @@ namespace ui
         if (auto* param = apvtsRef.getRawParameterValue (posId))
             p = param->load();
 
+        bool changed = false;
+
         if (w != cachedWave)
         {
             cachedTable = dsp::wavetables::makeByIndex (w);
             cachedWave  = w;
+            changed = true;
         }
-        cachedPos = p;
+
+        // Comparación con tolerancia para evitar repaint innecesario
+        if (std::abs (p - cachedPos) > 0.001f)
+        {
+            cachedPos = p;
+            changed = true;
+        }
+
+        if (changed)
+            repaint();
     }
 
     void WavetablePreview::paint (juce::Graphics& g)
     {
-        refreshIfNeeded();
+        // Asegurar que el primer render tiene valores
+        if (cachedWave < 0)
+            refreshIfNeeded();
 
         auto r = getLocalBounds().toFloat();
         const float w = r.getWidth();
         const float h = r.getHeight();
 
-        // Fondo
         g.setColour (juce::Colour (0xff0a0a0a));
         g.fillRoundedRectangle (r, 2.0f);
         g.setColour (juce::Colour (0xff2f2f2f));
         g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);
 
-        // Línea central
         g.setColour (juce::Colour (0xff1a1a1a));
         g.drawHorizontalLine ((int) (h * 0.5f), r.getX(), r.getRight());
 
@@ -78,6 +101,30 @@ namespace ui
         : apvtsRef (apvts),
           attackId (aId), decayId (dId), sustainId (sId), releaseId (rId)
     {
+        startTimerHz (30);
+    }
+
+    EnvelopeDisplay::~EnvelopeDisplay()
+    {
+        stopTimer();
+    }
+
+    void EnvelopeDisplay::timerCallback()
+    {
+        float a = 0, d = 0, s = 0, r = 0;
+        if (auto* p = apvtsRef.getRawParameterValue (attackId))  a = p->load();
+        if (auto* p = apvtsRef.getRawParameterValue (decayId))   d = p->load();
+        if (auto* p = apvtsRef.getRawParameterValue (sustainId)) s = p->load();
+        if (auto* p = apvtsRef.getRawParameterValue (releaseId)) r = p->load();
+
+        if (std::abs (a - cachedA) > 0.0001f ||
+            std::abs (d - cachedD) > 0.0001f ||
+            std::abs (s - cachedS) > 0.0001f ||
+            std::abs (r - cachedR) > 0.0001f)
+        {
+            cachedA = a; cachedD = d; cachedS = s; cachedR = r;
+            repaint();
+        }
     }
 
     void EnvelopeDisplay::paint (juce::Graphics& g)
@@ -146,6 +193,25 @@ namespace ui
                             const juce::String& waveParamID)
         : apvtsRef (apvts), waveId (waveParamID)
     {
+        startTimerHz (30);
+    }
+
+    LFODisplay::~LFODisplay()
+    {
+        stopTimer();
+    }
+
+    void LFODisplay::timerCallback()
+    {
+        int w = 0;
+        if (auto* p = apvtsRef.getRawParameterValue (waveId))
+            w = (int) p->load();
+
+        if (w != cachedWave)
+        {
+            cachedWave = w;
+            repaint();
+        }
     }
 
     void LFODisplay::paint (juce::Graphics& g)
@@ -162,9 +228,14 @@ namespace ui
         g.setColour (juce::Colour (0xff1a1a1a));
         g.drawHorizontalLine ((int) r.getCentreY(), r.getX(), r.getRight());
 
-        int waveIdx = 0;
-        if (auto* p = apvtsRef.getRawParameterValue (waveId))
-            waveIdx = (int) p->load();
+        int waveIdx = cachedWave;
+        if (waveIdx < 0)
+        {
+            if (auto* p = apvtsRef.getRawParameterValue (waveId))
+                waveIdx = (int) p->load();
+            else
+                waveIdx = 0;
+        }
 
         constexpr int N = 96;
         juce::Path path;
