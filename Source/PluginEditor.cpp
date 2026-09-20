@@ -1,1069 +1,797 @@
 #include "PluginEditor.h"
-#include "ParameterIDs.h"
-#include "UI/PPGLookAndFeel.h"
-#include "UI/Visualizers.h"
 
-// ==================== InfoDisplay ====================
-
-void PPGWave3Editor::InfoDisplay::setInfo (const juce::String& name, const juce::String& value)
+//==============================================================================
+namespace
 {
-    paramName  = name;
-    paramValue = value;
-    repaint();
-}
+    constexpr int kFifthOrderPC[12] = { 0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5 };
+    const char* const kPCNames[12] = { "C", "C#", "D", "D#", "E", "F",
+                                        "F#", "G", "G#", "A", "A#", "B" };
 
-void PPGWave3Editor::InfoDisplay::paint (juce::Graphics& g)
-{
-    auto r = getLocalBounds().toFloat();
-    g.setColour (juce::Colour (0xff0a0a0a));
-    g.fillRoundedRectangle (r, 3.0f);
-    g.setColour (juce::Colour (0xffffaa00));
-    g.drawRoundedRectangle (r.reduced (0.5f), 3.0f, 1.0f);
-
-    auto textArea = getLocalBounds().reduced (juce::roundToInt (5.0f * scale), 1);
-    g.setColour (juce::Colour (0xffffcc55));
-    g.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(),
-                                  juce::jmax (7.0f, 9.5f * scale), juce::Font::plain));
-
-    if (paramValue.isEmpty())
+    bool isBlackKey (int midiNote)
     {
-        g.drawText (paramName, textArea, juce::Justification::centredLeft);
-    }
-    else
-    {
-        auto nameArea = textArea.removeFromLeft ((int) ((float) textArea.getWidth() * 0.55f));
-        g.drawText (paramName,  nameArea, juce::Justification::centredLeft);
-        g.drawText (paramValue, textArea, juce::Justification::centredRight);
+        int pc = midiNote % 12;
+        return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
     }
 }
 
-// ==================== PresetDisplay ====================
-
-void PPGWave3Editor::PresetDisplay::setInfo (const juce::String& name,
-                                             const juce::String& category,
-                                             bool factory)
-{
-    presetName     = name;
-    presetCategory = category;
-    isFactory      = factory;
-    repaint();
-}
-
-void PPGWave3Editor::PresetDisplay::paint (juce::Graphics& g)
-{
-    auto r = getLocalBounds().toFloat();
-
-    g.setColour (juce::Colour (0xff0a0a0a));
-    g.fillRoundedRectangle (r, 3.0f);
-
-    g.setColour (juce::Colour (0xffffaa00));
-    g.drawRoundedRectangle (r.reduced (0.5f), 3.0f, 1.0f);
-
-    auto inner = getLocalBounds().reduced (6, 2);
-
-    g.setColour (juce::Colour (0xffffcc55));
-    g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
-    g.drawText (presetName, inner, juce::Justification::centred, false);
-
-    auto catRow = inner.removeFromBottom (10);
-    g.setColour (isFactory ? juce::Colour (0xffffaa00)
-                            : juce::Colour (0xff2ecc40));
-    g.setFont (juce::FontOptions (8.0f, juce::Font::plain));
-    const auto tag = isFactory ? "FACTORY" : "USER";
-    g.drawText (presetCategory.toUpperCase() + "  -  " + tag,
-                catRow, juce::Justification::centred, false);
-}
-
-// ==================== RotaryKnob ====================
-
-PPGWave3Editor::RotaryKnob::RotaryKnob (juce::AudioProcessorValueTreeState& state,
-                                        const juce::String& paramID,
-                                        const juce::String& labelText,
-                                        InfoDisplay* display)
-    : infoDisplay (display), paramName (labelText)
-{
-    slider.setSliderStyle (juce::Slider::RotaryVerticalDrag);
-    slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    slider.setColour (juce::Slider::rotarySliderFillColourId,    juce::Colour (0xffffaa00));
-    slider.setColour (juce::Slider::rotarySliderOutlineColourId, juce::Colour (0xff333333));
-    slider.setColour (juce::Slider::thumbColourId,               juce::Colour (0xffffcc55));
-
-    slider.onValueChange = [this]()
-    {
-        if (infoDisplay != nullptr)
-            infoDisplay->setInfo (paramName, slider.getTextFromValue (slider.getValue()));
-    };
-
-    addAndMakeVisible (slider);
-
-    label.setText (labelText, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centred);
-    label.setColour (juce::Label::textColourId, juce::Colour (0xffcccccc));
-    addAndMakeVisible (label);
-
-    attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-        state, paramID, slider);
-}
-
-void PPGWave3Editor::RotaryKnob::setScale (float s)
-{
-    scale = s;
-    label.setFont (juce::FontOptions (juce::jmax (7.0f, 9.0f * scale)));
-    resized();
-}
-
-void PPGWave3Editor::RotaryKnob::resized()
-{
-    auto r = getLocalBounds();
-    const int labelH = juce::jmax (9, juce::roundToInt (11.0f * scale));
-    label.setBounds (r.removeFromTop (labelH));
-    slider.setBounds (r.reduced (2, 0));
-}
-
-void PPGWave3Editor::RotaryKnob::paint (juce::Graphics&) {}
-
-// ==================== HSlider ====================
-
-PPGWave3Editor::HSlider::HSlider (juce::AudioProcessorValueTreeState& state,
-                                  const juce::String& paramID,
-                                  InfoDisplay* display)
-    : infoDisplay (display)
-{
-    slider.setSliderStyle (juce::Slider::LinearHorizontal);
-    slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    slider.setColour (juce::Slider::trackColourId,       juce::Colour (0xffffaa00));
-    slider.setColour (juce::Slider::backgroundColourId,  juce::Colour (0xff2a2a2a));
-    slider.setColour (juce::Slider::thumbColourId,       juce::Colour (0xffffcc55));
-    addAndMakeVisible (slider);
-
-    slider.onValueChange = [this]()
-    {
-        if (infoDisplay != nullptr)
-            infoDisplay->setInfo ("Mod Amount", slider.getTextFromValue (slider.getValue()));
-    };
-
-    attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-        state, paramID, slider);
-}
-
-void PPGWave3Editor::HSlider::setScale (float s)
-{
-    scale = s;
-    resized();
-}
-
-void PPGWave3Editor::HSlider::resized()
-{
-    slider.setBounds (getLocalBounds().reduced (2, 4));
-}
-
-void PPGWave3Editor::HSlider::paint (juce::Graphics&) {}
-
-// ==================== ButtonSelector ====================
-
-PPGWave3Editor::ButtonSelector::ButtonSelector (juce::AudioProcessorValueTreeState& state,
-                                                const juce::String& paramID,
-                                                const juce::StringArray& names)
-    : apvtsRef (state), id (paramID)
-{
-    for (int i = 0; i < names.size(); ++i)
-    {
-        auto* b = buttons.add (new juce::TextButton (names[i]));
-        b->setClickingTogglesState (false);
-        b->setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff2a2a2a));
-        b->setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffaa00));
-        b->setColour (juce::TextButton::textColourOffId,  juce::Colour (0xffcccccc));
-        b->setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
-        b->onClick = [this, i]()
-        {
-            if (attachment)
-                attachment->setValueAsCompleteGesture ((float) i);
-        };
-        addAndMakeVisible (b);
-    }
-
-    attachment = std::make_unique<juce::ParameterAttachment> (
-        *apvtsRef.getParameter (id),
-        [this] (float newValue)
-        {
-            currentIndex = (int) newValue;
-            refreshFromParameter();
-        });
-    attachment->sendInitialUpdate();
-}
-
-void PPGWave3Editor::ButtonSelector::refreshFromParameter()
-{
-    for (int i = 0; i < buttons.size(); ++i)
-        buttons[i]->setToggleState (i == currentIndex, juce::dontSendNotification);
-}
-
-void PPGWave3Editor::ButtonSelector::resized()
-{
-    auto r = getLocalBounds();
-    const int w = r.getWidth() / juce::jmax (1, buttons.size());
-    for (auto* b : buttons)
-        b->setBounds (r.removeFromLeft (w).reduced (1));
-}
-
-void PPGWave3Editor::ButtonSelector::paint (juce::Graphics&) {}
-
-// ==================== ComboBoxSelector ====================
-
-PPGWave3Editor::ComboBoxSelector::ComboBoxSelector (juce::AudioProcessorValueTreeState& state,
-                                                    const juce::String& paramID,
-                                                    const juce::String& labelText,
-                                                    InfoDisplay* display)
-    : infoDisplay (display), paramName (labelText)
-{
-    combo.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff2a2a2a));
-    combo.setColour (juce::ComboBox::textColourId,       juce::Colour (0xffffcc55));
-    combo.setColour (juce::ComboBox::outlineColourId,    juce::Colour (0xff555555));
-    combo.setColour (juce::ComboBox::arrowColourId,      juce::Colour (0xffffaa00));
-    addAndMakeVisible (combo);
-
-    label.setText (labelText, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centredLeft);
-    label.setColour (juce::Label::textColourId, juce::Colour (0xffcccccc));
-    addAndMakeVisible (label);
-
-    if (auto* param = state.getParameter (paramID))
-    {
-        if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
-            combo.addItemList (choice->choices, 1);
-    }
-
-    attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
-        state, paramID, combo);
-
-    combo.onChange = [this]()
-    {
-        if (infoDisplay != nullptr)
-            infoDisplay->setInfo (paramName, combo.getText());
-    };
-}
-
-void PPGWave3Editor::ComboBoxSelector::setScale (float s)
-{
-    scale = s;
-    label.setFont (juce::FontOptions (juce::jmax (7.0f, 9.0f * scale)));
-    resized();
-}
-
-void PPGWave3Editor::ComboBoxSelector::resized()
-{
-    auto r = getLocalBounds();
-    const int labelH = juce::jmax (9, juce::roundToInt (11.0f * scale));
-    label.setBounds (r.removeFromTop (labelH));
-    combo.setBounds (r);
-}
-
-void PPGWave3Editor::ComboBoxSelector::paint (juce::Graphics&) {}
-
-// ==================== ToggleButton ====================
-
-PPGWave3Editor::ToggleButton::ToggleButton (juce::AudioProcessorValueTreeState& state,
-                                            const juce::String& paramID,
-                                            const juce::String& labelText,
-                                            InfoDisplay* display)
-    : infoDisplay (display), paramName (labelText)
-{
-    button.setButtonText (labelText);
-    button.setClickingTogglesState (true);
-    button.setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff2a2a2a));
-    button.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffaa00));
-    button.setColour (juce::TextButton::textColourOffId,  juce::Colour (0xffcccccc));
-    button.setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
-
-    button.onClick = [this]()
-    {
-        if (infoDisplay != nullptr)
-            infoDisplay->setInfo (paramName, button.getToggleState() ? "ON" : "OFF");
-    };
-
-    addAndMakeVisible (button);
-
-    attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
-        state, paramID, button);
-}
-
-void PPGWave3Editor::ToggleButton::setScale (float s)
-{
-    scale = s;
-}
-
-void PPGWave3Editor::ToggleButton::resized()
-{
-    button.setBounds (getLocalBounds());
-}
-
-void PPGWave3Editor::ToggleButton::paint (juce::Graphics&) {}
-
-// ==================== Editor ====================
-
-PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
+//==============================================================================
+MidiHarmonicHUDEditor::MidiHarmonicHUDEditor (MidiHarmonicHUDProcessor& p)
     : AudioProcessorEditor (&p),
       processorRef (p),
-      apvts (p.apvts),
-      presetManager (p.apvts),
-      prevBtn ("<"),
-      nextBtn (">"),
-      loadBtn ("LOAD"),
-      saveBtn ("SAVE"),
-      browseBtn ("BROWSE"),
-      osc1Wave (std::make_unique<ButtonSelector> (p.apvts, ParamIDs::osc1Wave,
-                  juce::StringArray { "SIN", "TRI", "SAW", "SQR" })),
-      osc1Preview (p.apvts, ParamIDs::osc1Wave, ParamIDs::osc1Pos),
-      osc1Pos   (p.apvts, ParamIDs::osc1Pos,    "POS",    &osc1Info),
-      osc1Oct   (p.apvts, ParamIDs::osc1Octave, "OCT",    &osc1Info),
-      osc1Semi  (p.apvts, ParamIDs::osc1Semi,   "SEMI",   &osc1Info),
-      osc1Fine  (p.apvts, ParamIDs::osc1Fine,   "FINE",   &osc1Info),
-      osc1Level (p.apvts, ParamIDs::osc1Level,  "LEVEL",  &osc1Info),
-      osc2Wave (std::make_unique<ButtonSelector> (p.apvts, ParamIDs::osc2Wave,
-                  juce::StringArray { "SIN", "TRI", "SAW", "SQR" })),
-      osc2Preview (p.apvts, ParamIDs::osc2Wave, ParamIDs::osc2Pos),
-      osc2Pos   (p.apvts, ParamIDs::osc2Pos,    "POS",    &osc2Info),
-      osc2Oct   (p.apvts, ParamIDs::osc2Octave, "OCT",    &osc2Info),
-      osc2Semi  (p.apvts, ParamIDs::osc2Semi,   "SEMI",   &osc2Info),
-      osc2Fine  (p.apvts, ParamIDs::osc2Fine,   "FINE",   &osc2Info),
-      osc2Level (p.apvts, ParamIDs::osc2Level,  "LEVEL",  &osc2Info),
-      filterType (std::make_unique<ButtonSelector> (p.apvts, ParamIDs::filterType,
-                    juce::StringArray { "LP", "HP", "BP" })),
-      filterCutoff  (p.apvts, ParamIDs::filterCutoff,   "CUTOFF",  &filterInfo),
-      filterReso    (p.apvts, ParamIDs::filterReso,     "RESO",    &filterInfo),
-      filterEnvAmt  (p.apvts, ParamIDs::filterEnvAmt,   "ENV AMT", &filterInfo),
-      filterKeyTrack(p.apvts, ParamIDs::filterKeyTrack, "KEY TRK", &filterInfo),
-      ampEnvDisplay (p.apvts, ParamIDs::ampAttack, ParamIDs::ampDecay,
-                     ParamIDs::ampSustain, ParamIDs::ampRelease),
-      ampA (p.apvts, ParamIDs::ampAttack,  "A", &ampEnvInfo),
-      ampD (p.apvts, ParamIDs::ampDecay,   "D", &ampEnvInfo),
-      ampS (p.apvts, ParamIDs::ampSustain, "S", &ampEnvInfo),
-      ampR (p.apvts, ParamIDs::ampRelease, "R", &ampEnvInfo),
-      filtEnvDisplay (p.apvts, ParamIDs::filtAttack, ParamIDs::filtDecay,
-                      ParamIDs::filtSustain, ParamIDs::filtRelease),
-      filtA (p.apvts, ParamIDs::filtAttack,  "A", &filtEnvInfo),
-      filtD (p.apvts, ParamIDs::filtDecay,   "D", &filtEnvInfo),
-      filtS (p.apvts, ParamIDs::filtSustain, "S", &filtEnvInfo),
-      filtR (p.apvts, ParamIDs::filtRelease, "R", &filtEnvInfo),
-      master (p.apvts, ParamIDs::masterGain, "MASTER", &masterInfo),
-      masterMeter (p.peakLevel),
-      lfo1Wave (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo1Wave, "WAVE", &lfoInfo)),
-      lfo1Display (p.apvts, ParamIDs::lfo1Wave),
-      lfo1Rate  (p.apvts, ParamIDs::lfo1Rate,  "RATE",  &lfoInfo),
-      lfo1Depth (p.apvts, ParamIDs::lfo1Depth, "DEPTH", &lfoInfo),
-      lfo1Phase (p.apvts, ParamIDs::lfo1Phase, "PHASE", &lfoInfo),
-      lfo1Sync  (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo1Sync, "SYNC", &lfoInfo)),
-      lfo2Wave (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo2Wave, "WAVE", &lfoInfo)),
-      lfo2Display (p.apvts, ParamIDs::lfo2Wave),
-      lfo2Rate  (p.apvts, ParamIDs::lfo2Rate,  "RATE",  &lfoInfo),
-      lfo2Depth (p.apvts, ParamIDs::lfo2Depth, "DEPTH", &lfoInfo),
-      lfo2Phase (p.apvts, ParamIDs::lfo2Phase, "PHASE", &lfoInfo),
-      lfo2Sync  (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo2Sync, "SYNC", &lfoInfo)),
-      mod1Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod1Source, "SRC", &modInfo)),
-      mod1Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod1Dest,   "DST", &modInfo)),
-      mod1Amt (p.apvts, ParamIDs::mod1Amount, &modInfo),
-      mod2Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod2Source, "SRC", &modInfo)),
-      mod2Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod2Dest,   "DST", &modInfo)),
-      mod2Amt (p.apvts, ParamIDs::mod2Amount, &modInfo),
-      mod3Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod3Source, "SRC", &modInfo)),
-      mod3Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod3Dest,   "DST", &modInfo)),
-      mod3Amt (p.apvts, ParamIDs::mod3Amount, &modInfo),
-      mod4Src (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod4Source, "SRC", &modInfo)),
-      mod4Dst (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::mod4Dest,   "DST", &modInfo)),
-      mod4Amt (p.apvts, ParamIDs::mod4Amount, &modInfo),
-      driveOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::driveOn, "DRIVE", &fxInfo)),
-      driveAmount (p.apvts, ParamIDs::driveAmount, "AMT",  &fxInfo),
-      driveTone   (p.apvts, ParamIDs::driveTone,   "TONE", &fxInfo),
-      driveMix    (p.apvts, ParamIDs::driveMix,    "MIX",  &fxInfo),
-      chorusOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::chorusOn, "CHORUS", &fxInfo)),
-      chorusRate  (p.apvts, ParamIDs::chorusRate,  "RATE",  &fxInfo),
-      chorusDepth (p.apvts, ParamIDs::chorusDepth, "DEPTH", &fxInfo),
-      chorusMix   (p.apvts, ParamIDs::chorusMix,   "MIX",   &fxInfo),
-      delayOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::delayOn, "DELAY", &fxInfo)),
-      delaySync (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::delaySync, "SYNC", &fxInfo)),
-      delayTime     (p.apvts, ParamIDs::delayTime,     "TIME",  &fxInfo),
-      delayFeedback (p.apvts, ParamIDs::delayFeedback, "FEEDBK",&fxInfo),
-      delayMix      (p.apvts, ParamIDs::delayMix,      "MIX",   &fxInfo),
-      reverbOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::reverbOn, "REVERB", &fxInfo)),
-      reverbSize (p.apvts, ParamIDs::reverbSize, "SIZE", &fxInfo),
-      reverbDamp (p.apvts, ParamIDs::reverbDamp, "DAMP", &fxInfo),
-      reverbMix  (p.apvts, ParamIDs::reverbMix,  "MIX",  &fxInfo)
+      muteAttachment (p.apvts, ParamIDs::muteSynth, muteButton),
+      presetAttachment (p.apvts, ParamIDs::presetIndex, presetCombo),
+      themeAttachment (p.apvts, ParamIDs::themeIndex, themeCombo)
 {
-    juce::ignoreUnused (processorRef, apvts);
+    setSize (780, 800);
+    setResizable (false, false);
 
-    // === Preset bar ===
-    prevBtn.setConnectedEdges (juce::Button::ConnectedOnRight);
-    nextBtn.setConnectedEdges (juce::Button::ConnectedOnLeft);
-    prevBtn.onClick = [this]() { onPrevPreset(); };
-    nextBtn.onClick = [this]() { onNextPreset(); };
-    loadBtn.onClick = [this]() { onLoadPreset(); };
-    saveBtn.onClick = [this]() { onSavePreset(); };
-    browseBtn.onClick = [this]() { onBrowsePreset(); };
+    // Cargar tema inicial
+    int themeId = (int) processorRef.apvts.getRawParameterValue (ParamIDs::themeIndex)->load();
+    theme = ThemeManager::getTheme (themeId);
 
-    for (auto* b : { &prevBtn, &nextBtn, &loadBtn, &saveBtn, &browseBtn })
-        addAndMakeVisible (b);
+    // ---- Mute Button ----
+    muteButton.setColour (juce::ToggleButton::textColourId, theme.text);
+    muteButton.setColour (juce::ToggleButton::tickColourId, theme.accent);
+    muteButton.setColour (juce::ToggleButton::tickDisabledColourId, theme.dimText);
+    addAndMakeVisible (muteButton);
 
-    addAndMakeVisible (presetDisplay);
+    // ---- Preset Combo ----
+    presetLabel.setText ("Preset", juce::dontSendNotification);
+    presetLabel.setColour (juce::Label::textColourId, theme.dimText);
+    presetLabel.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    presetLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (presetLabel);
 
-    updatePresetDisplay();
+    presetCombo.addItemList ({ "Electric Piano", "Warm Pad", "Pluck" }, 1);
+    presetCombo.setColour (juce::ComboBox::backgroundColourId, theme.panel);
+    presetCombo.setColour (juce::ComboBox::textColourId, theme.text);
+    presetCombo.setColour (juce::ComboBox::outlineColourId, theme.panelStroke);
+    presetCombo.setColour (juce::ComboBox::arrowColourId, theme.accent);
+    addAndMakeVisible (presetCombo);
 
-    // === FX tab buttons ===
-    for (auto* b : { &driveTabBtn, &chorusTabBtn, &delayTabBtn, &reverbTabBtn })
+    // ---- Theme Combo ----
+    themeLabel.setText ("Theme", juce::dontSendNotification);
+    themeLabel.setColour (juce::Label::textColourId, theme.dimText);
+    themeLabel.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    themeLabel.setJustificationType (juce::Justification::centredRight);
+    addAndMakeVisible (themeLabel);
+
+    themeCombo.addItemList (ThemeManager::getThemeNames(), 1);
+    themeCombo.setColour (juce::ComboBox::backgroundColourId, theme.panel);
+    themeCombo.setColour (juce::ComboBox::textColourId, theme.text);
+    themeCombo.setColour (juce::ComboBox::outlineColourId, theme.panelStroke);
+    themeCombo.setColour (juce::ComboBox::arrowColourId, theme.accent);
+    themeCombo.onChange = [this]()
     {
-        b->setClickingTogglesState (false);
-        b->setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff1c1c1c));
-        b->setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffaa00));
-        b->setColour (juce::TextButton::textColourOffId,  juce::Colour (0xffaaaaaa));
-        b->setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
-        addAndMakeVisible (b);
+        int id = themeCombo.getSelectedId() - 1;
+        theme = ThemeManager::getTheme (id);
+        repaint();
+    };
+    addAndMakeVisible (themeCombo);
+
+    startTimerHz (60);
+}
+
+MidiHarmonicHUDEditor::~MidiHarmonicHUDEditor()
+{
+    stopTimer();
+}
+
+//==============================================================================
+void MidiHarmonicHUDEditor::paint (juce::Graphics& g)
+{
+    // Refrescar tema por si cambió
+    int themeId = (int) processorRef.apvts.getRawParameterValue (ParamIDs::themeIndex)->load();
+    if (themeCombo.getSelectedId() - 1 != themeId)
+    {
+        theme = ThemeManager::getTheme (themeId);
+        themeCombo.setSelectedId (themeId + 1, juce::dontSendNotification);
     }
 
-    driveTabBtn .setButtonText ("DIST");
-    chorusTabBtn.setButtonText ("CHORUS");
-    delayTabBtn .setButtonText ("DELAY");
-    reverbTabBtn.setButtonText ("REVERB");
+    // Fondo con gradiente radial
+    juce::ColourGradient bgGrad (theme.bg2, getWidth() * 0.5f, 0.0f,
+                                  theme.bg,  getWidth() * 0.5f, (float) getHeight(), true);
+    g.setGradientFill (bgGrad);
+    g.fillAll();
 
-    driveTabBtn .onClick = [this]() { activeFxTab = 0; updateFxVisibility(); repaint(); };
-    chorusTabBtn.onClick = [this]() { activeFxTab = 1; updateFxVisibility(); repaint(); };
-    delayTabBtn .onClick = [this]() { activeFxTab = 2; updateFxVisibility(); repaint(); };
-    reverbTabBtn.onClick = [this]() { activeFxTab = 3; updateFxVisibility(); repaint(); };
+    // Grid sutil
+    g.setColour (juce::Colour (0xffffffff).withAlpha (0.012f));
+    for (int x = 0; x < getWidth(); x += 20)
+        g.drawVerticalLine (x, 0.0f, (float) getHeight());
+    for (int y = 0; y < getHeight(); y += 20)
+        g.drawHorizontalLine (y, 0.0f, (float) getWidth());
 
-    // Visualizadores
-    addAndMakeVisible (osc1Preview);
-    addAndMakeVisible (osc2Preview);
-    addAndMakeVisible (lfo1Display);
-    addAndMakeVisible (lfo2Display);
-    addAndMakeVisible (ampEnvDisplay);
-    addAndMakeVisible (filtEnvDisplay);
-    addAndMakeVisible (masterMeter);
+    // ---- Layout ----
+    auto bounds = getLocalBounds().reduced (12);
 
-    addAndMakeVisible (*osc1Wave);
-    addAndMakeVisible (*osc2Wave);
-    addAndMakeVisible (*filterType);
-    addAndMakeVisible (*lfo1Wave);   addAndMakeVisible (*lfo1Sync);
-    addAndMakeVisible (*lfo2Wave);   addAndMakeVisible (*lfo2Sync);
-    addAndMakeVisible (*mod1Src);    addAndMakeVisible (*mod1Dst);
-    addAndMakeVisible (*mod2Src);    addAndMakeVisible (*mod2Dst);
-    addAndMakeVisible (*mod3Src);    addAndMakeVisible (*mod3Dst);
-    addAndMakeVisible (*mod4Src);    addAndMakeVisible (*mod4Dst);
-    addAndMakeVisible (*driveOn);
-    addAndMakeVisible (*chorusOn);
-    addAndMakeVisible (*delayOn);    addAndMakeVisible (*delaySync);
-    addAndMakeVisible (*reverbOn);
+    // Header
+    auto headerArea = bounds.removeFromTop (40);
+    bounds.removeFromTop (8);
+    drawHeader (g, headerArea);
 
-    for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
-                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
-                     &lfoInfo, &modInfo, &fxInfo })
-        addAndMakeVisible (d);
+    // Fila 1: Detecting + Circle of Fifths
+    auto row1 = bounds.removeFromTop (260);
+    auto detectingArea = row1.removeFromLeft (380);
+    row1.removeFromLeft (8);
+    auto circleArea = row1;
 
-    std::initializer_list<juce::Component*> allKnobs {
-        &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
-        &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
-        &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
-        &ampA, &ampD, &ampS, &ampR,
-        &filtA, &filtD, &filtS, &filtR,
-        &master,
-        &lfo1Rate, &lfo1Depth, &lfo1Phase,
-        &lfo2Rate, &lfo2Depth, &lfo2Phase,
-        &driveAmount, &driveTone, &driveMix,
-        &chorusRate, &chorusDepth, &chorusMix,
-        &delayTime, &delayFeedback, &delayMix,
-        &reverbSize, &reverbDamp, &reverbMix,
-        &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt
-    };
-    for (auto* c : allKnobs)
-        addAndMakeVisible (c);
+    drawDetectingPanel (g, detectingArea);
+    drawCircleOfFifths (g, circleArea);
 
-    setLookAndFeel (&ppgLnf);
+    bounds.removeFromTop (8);
 
-    setResizable (false, false);
-    setSize (1280, 860);
+    // Fila 2: Piano
+    auto keyboardArea = bounds.removeFromTop (110);
+    drawPianoKeyboard (g, keyboardArea);
 
-    // Activar primera pestaña
-    updateFxVisibility();
+    bounds.removeFromTop (8);
+
+    // Fila 3: History + Diatonic
+    auto row3 = bounds.removeFromTop (160);
+    auto historyArea = row3.removeFromLeft (380);
+    row3.removeFromLeft (8);
+    auto diatonicArea = row3;
+
+    drawHistoryPanel (g, historyArea);
+    drawDiatonicPanel (g, diatonicArea);
+
+    bounds.removeFromTop (8);
+
+    // Fila 4: Tension graph (ancho completo)
+    auto tensionArea = bounds.removeFromTop (100);
+    drawTensionGraph (g, tensionArea);
 }
 
-PPGWave3Editor::~PPGWave3Editor()
+//==============================================================================
+void MidiHarmonicHUDEditor::drawHeader (juce::Graphics& g, juce::Rectangle<int> area)
 {
-    setLookAndFeel (nullptr);
+    drawGlowText (g, "MIDI HARMONIC HUD",
+                  area.removeFromLeft (300),
+                  theme.accent, 22.0f, 1.0f);
+
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (11.0f)));
+    g.drawText ("V 2.0",
+                area.removeFromLeft (50),
+                juce::Justification::centredLeft, false);
 }
 
-// ==================== FX Tab visibility ====================
-
-void PPGWave3Editor::updateFxVisibility()
+//==============================================================================
+void MidiHarmonicHUDEditor::drawGlowText (juce::Graphics& g, const juce::String& text,
+                                           juce::Rectangle<int> area,
+                                           juce::Colour colour,
+                                           float fontSize, float alpha)
 {
-    const bool d  = (activeFxTab == 0);
-    const bool c  = (activeFxTab == 1);
-    const bool dl = (activeFxTab == 2);
-    const bool r  = (activeFxTab == 3);
+    juce::Graphics::ScopedSaveState state (g);
+    g.setOpacity (alpha);
 
-    driveOn    ->setVisible (d);
-    driveAmount.setVisible (d);
-    driveTone  .setVisible (d);
-    driveMix   .setVisible (d);
+    g.setColour (colour.withAlpha (0.35f));
+    g.setFont (juce::Font (juce::FontOptions (fontSize + 2.0f).withStyle ("Bold")));
+    g.drawText (text, area.translated (0, 1), juce::Justification::centredLeft, false);
 
-    chorusOn   ->setVisible (c);
-    chorusRate .setVisible (c);
-    chorusDepth.setVisible (c);
-    chorusMix  .setVisible (c);
-
-    delayOn    ->setVisible (dl);
-    delaySync  ->setVisible (dl);
-    delayTime  .setVisible (dl);
-    delayFeedback.setVisible (dl);
-    delayMix   .setVisible (dl);
-
-    reverbOn   ->setVisible (r);
-    reverbSize .setVisible (r);
-    reverbDamp .setVisible (r);
-    reverbMix  .setVisible (r);
-
-    driveTabBtn .setToggleState (d,  juce::dontSendNotification);
-    chorusTabBtn.setToggleState (c,  juce::dontSendNotification);
-    delayTabBtn .setToggleState (dl, juce::dontSendNotification);
-    reverbTabBtn.setToggleState (r,  juce::dontSendNotification);
+    g.setColour (colour);
+    g.setFont (juce::Font (juce::FontOptions (fontSize).withStyle ("Bold")));
+    g.drawText (text, area, juce::Justification::centredLeft, false);
 }
 
-// ==================== Preset actions ====================
-
-void PPGWave3Editor::updatePresetDisplay()
+//==============================================================================
+void MidiHarmonicHUDEditor::drawDetectingPanel (juce::Graphics& g, juce::Rectangle<int> area)
 {
-    const int idx = presetManager.getCurrentIndex();
-    const auto& list = presetManager.getAllPresets();
+    g.setColour (theme.panel);
+    g.fillRoundedRectangle (area.toFloat(), 12.0f);
+    g.setColour (theme.panelStroke);
+    g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 12.0f, 1.0f);
 
-    if (idx >= 0 && idx < list.size())
+    auto inner = area.reduced (14);
+
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText ("DETECTING", inner.removeFromTop (16),
+                juce::Justification::topLeft, false);
+
+    inner.removeFromTop (6);
+
+    auto chordArea = inner.removeFromTop (96);
+    bool hasChord = (cachedChord != "---" && !cachedChord.isEmpty());
+
+    if (hasChord)
     {
-        const auto& info = list.getReference (idx);
-        presetDisplay.setInfo (info.name, info.category, info.isFactory);
+        {
+            juce::Graphics::ScopedSaveState state (g);
+            g.setOpacity (chordFadeAlpha * 0.25f);
+            g.setColour (theme.accent);
+            g.setFont (juce::Font (juce::FontOptions (48.0f).withStyle ("Bold")));
+            g.drawText (cachedChord, chordArea.translated (0, 2),
+                        juce::Justification::centred, false);
+        }
+        {
+            juce::Graphics::ScopedSaveState state (g);
+            g.setOpacity (chordFadeAlpha);
+            g.setColour (theme.text);
+            g.setFont (juce::Font (juce::FontOptions (46.0f).withStyle ("Bold")));
+            g.drawText (cachedChord, chordArea, juce::Justification::centred, false);
+        }
     }
     else
     {
-        presetDisplay.setInfo (presetManager.getCurrentName(),
-                               presetManager.getCurrentCategory(), true);
+        g.setColour (theme.dimText.withAlpha (0.4f));
+        g.setFont (juce::Font (juce::FontOptions (46.0f).withStyle ("Bold")));
+        g.drawText ("---", chordArea, juce::Justification::centred, false);
     }
+
+    inner.removeFromTop (4);
+
+    auto confArea = inner.removeFromTop (32);
+    drawConfidenceMeter (g, confArea);
+
+    inner.removeFromTop (6);
+
+    auto tensArea = inner.removeFromTop (32);
+    drawTensionGradient (g, tensArea);
 }
 
-void PPGWave3Editor::onPrevPreset()
+//==============================================================================
+void MidiHarmonicHUDEditor::drawConfidenceMeter (juce::Graphics& g, juce::Rectangle<int> area)
 {
-    presetManager.prev();
-    updatePresetDisplay();
-}
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText ("CONFIDENCE", area.getX(), area.getY(), area.getWidth(), 14,
+                juce::Justification::topLeft, false);
 
-void PPGWave3Editor::onNextPreset()
-{
-    presetManager.next();
-    updatePresetDisplay();
-}
+    g.setColour (theme.accent);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText (juce::String (juce::roundToInt (confidenceSmooth * 100.0f)) + "%",
+                area.getX(), area.getY(), area.getWidth(), 14,
+                juce::Justification::topRight, false);
 
-void PPGWave3Editor::onLoadPreset()
-{
-    presetManager.refresh();
-    presetManager.loadByIndex (presetManager.getCurrentIndex());
-    updatePresetDisplay();
-}
+    auto barArea = area.withTrimmedTop (16).withHeight (10).toFloat();
 
-void PPGWave3Editor::onSavePreset()
-{
-    auto* window = new juce::AlertWindow ("Save Preset",
-                                          "Enter preset name and category:",
-                                          juce::MessageBoxIconType::NoIcon);
-    window->addTextEditor ("name", presetManager.getCurrentName(), "Name:");
-    window->addComboBox ("cat",
-                         { "Bass","Lead","Pad","Keys","Bell","Pluck",
-                           "Sequence","FX","Atmospheric","Digital",
-                           "Experimental","Percussive" },
-                         "Category:");
-    window->addButton ("Save",   1, juce::KeyPress (juce::KeyPress::returnKey));
-    window->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    g.setColour (theme.bg.darker (0.4f));
+    g.fillRoundedRectangle (barArea, 5.0f);
 
-    window->enterModalState (true,
-        juce::ModalCallbackFunction::create ([this, window] (int result)
-        {
-            if (result == 1)
-            {
-                auto name = window->getTextEditorContents ("name");
-                auto* cb  = window->getComboBoxComponent ("cat");
-                auto cat  = cb != nullptr ? cb->getText() : juce::String ("User");
-
-                if (name.isNotEmpty())
-                {
-                    presetManager.saveUserPreset (name, cat);
-                    updatePresetDisplay();
-                }
-            }
-        }),
-        true);
-}
-
-void PPGWave3Editor::onBrowsePreset()
-{
-    fileChooser = std::make_unique<juce::FileChooser> (
-        "Load Preset",
-        presetManager.getUserPresetDirectory(),
-        "*.json");
-
-    fileChooser->launchAsync (
-        juce::FileBrowserComponent::openMode |
-        juce::FileBrowserComponent::canSelectFiles,
-        [this] (const juce::FileChooser& fc)
-        {
-            auto file = fc.getResult();
-            if (file.existsAsFile())
-            {
-                presetManager.loadFromFile (file);
-                updatePresetDisplay();
-            }
-        });
-}
-
-// ==================== Scale ====================
-
-float PPGWave3Editor::computeScale() const
-{
-    const float refH = 860.0f;
-    return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
-}
-
-void PPGWave3Editor::applyScaleToAll (float scaleValue)
-{
-    for (auto* k : { &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
-                     &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
-                     &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
-                     &ampA, &ampD, &ampS, &ampR,
-                     &filtA, &filtD, &filtS, &filtR,
-                     &master,
-                     &lfo1Rate, &lfo1Depth, &lfo1Phase,
-                     &lfo2Rate, &lfo2Depth, &lfo2Phase,
-                     &driveAmount, &driveTone, &driveMix,
-                     &chorusRate, &chorusDepth, &chorusMix,
-                     &delayTime, &delayFeedback, &delayMix,
-                     &reverbSize, &reverbDamp, &reverbMix })
-        k->setScale (scaleValue);
-
-    for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
-                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
-                     &lfoInfo, &modInfo, &fxInfo })
-        d->setScale (scaleValue);
-
-    for (auto* h : { &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt })
-        h->setScale (scaleValue);
-
-    osc1Wave  ->setScale (scaleValue);
-    osc2Wave  ->setScale (scaleValue);
-    filterType->setScale (scaleValue);
-
-    lfo1Wave->setScale (scaleValue);  lfo2Wave->setScale (scaleValue);
-    lfo1Sync->setScale (scaleValue);  lfo2Sync->setScale (scaleValue);
-    delaySync->setScale (scaleValue);
-
-    mod1Src->setScale (scaleValue);  mod1Dst->setScale (scaleValue);
-    mod2Src->setScale (scaleValue);  mod2Dst->setScale (scaleValue);
-    mod3Src->setScale (scaleValue);  mod3Dst->setScale (scaleValue);
-    mod4Src->setScale (scaleValue);  mod4Dst->setScale (scaleValue);
-
-    driveOn ->setScale (scaleValue);
-    chorusOn->setScale (scaleValue);
-    delayOn ->setScale (scaleValue);
-    reverbOn->setScale (scaleValue);
-}
-
-// ==================== paint ====================
-
-void PPGWave3Editor::paint (juce::Graphics& g)
-{
-    g.fillAll (PPGLookAndFeel::bgApp());
-
-    auto top = getLocalBounds().removeFromTop (72);
+    if (confidenceSmooth > 0.001f)
     {
-        juce::ColourGradient grad (juce::Colour (0xff0a0a0a),
-                                   0.0f, (float) top.getY(),
-                                   juce::Colour (0xff1a1a1a),
-                                   0.0f, (float) top.getBottom(), false);
+        auto fillWidth = barArea.getWidth() * confidenceSmooth;
+        auto fillArea = barArea.withWidth (fillWidth);
+
+        juce::ColourGradient grad (theme.accent3, barArea.getX(), barArea.getY(),
+                                    theme.accent, barArea.getRight(), barArea.getY(), false);
         g.setGradientFill (grad);
-        g.fillRect (top);
+        g.fillRoundedRectangle (fillArea, 5.0f);
 
-        g.setColour (PPGLookAndFeel::accent());
-        g.fillRect (top.getX(), top.getBottom() - 1, top.getWidth(), 1);
-
-        auto logoRow = top.removeFromTop (36);
-        drawLogo (g, logoRow.reduced (10, 4));
+        g.setColour (juce::Colours::white.withAlpha (0.15f));
+        g.fillRoundedRectangle (fillArea.withHeight (3.0f), 1.5f);
     }
 
-    drawSection (g, osc1Area,    "OSCILLATOR 1");
-    drawSection (g, osc2Area,    "OSCILLATOR 2");
-    drawSection (g, filterArea,  "FILTER");
-    drawSection (g, lfoArea,     "LFO");
-    drawSection (g, modArea,     "MODULATION MATRIX");
-    drawSection (g, fxArea,      "EFFECTS");
-    drawSection (g, ampEnvArea,  "AMP ENVELOPE");
-    drawSection (g, filtEnvArea, "FILTER ENVELOPE");
-    drawSection (g, masterArea,  "MASTER");
+    g.setColour (theme.panelStroke);
+    g.drawRoundedRectangle (barArea, 5.0f, 1.0f);
 }
 
-void PPGWave3Editor::drawSection (juce::Graphics& g, juce::Rectangle<int> area,
-                                  const juce::String& title) const
+//==============================================================================
+void MidiHarmonicHUDEditor::drawTensionGradient (juce::Graphics& g, juce::Rectangle<int> area)
 {
-    if (area.isEmpty()) return;
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText ("HARMONIC TENSION", area.getX(), area.getY(), area.getWidth(), 14,
+                juce::Justification::topLeft, false);
 
-    const auto r = area.toFloat();
-    juce::ColourGradient grad (juce::Colour (0xff1c1c1c), r.getX(), r.getY(),
-                               juce::Colour (0xff151515), r.getX(), r.getBottom(), false);
+    const char* label = "Consonant";
+    if (tensionSmooth > 0.66f) label = "Dissonant";
+    else if (tensionSmooth > 0.33f) label = "Mild";
+
+    g.setColour (theme.danger.withAlpha (0.9f));
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText (label, area.getX(), area.getY(), area.getWidth(), 14,
+                juce::Justification::topRight, false);
+
+    auto barArea = area.withTrimmedTop (16).withHeight (10).toFloat();
+
+    juce::ColourGradient grad (theme.accent3, barArea.getX(), barArea.getY(),
+                                theme.danger, barArea.getRight(), barArea.getY(), false);
+    grad.addColour (0.5, theme.warn);
     g.setGradientFill (grad);
-    g.fillRoundedRectangle (r, 4.0f);
+    g.fillRoundedRectangle (barArea, 5.0f);
 
-    g.setColour (juce::Colour (0xff2f2f2f));
-    g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
+    if (cachedActiveCount == 0)
+    {
+        g.setColour (theme.bg.withAlpha (0.7f));
+        g.fillRoundedRectangle (barArea, 5.0f);
+    }
+    else
+    {
+        float markerX = barArea.getX() + barArea.getWidth() * tensionSmooth;
 
-    g.setColour (PPGLookAndFeel::accent());
-    g.setFont (juce::Font (juce::FontOptions (9.5f * currentScale, juce::Font::bold)));
+        g.setColour (juce::Colours::white.withAlpha (0.25f));
+        g.fillEllipse (markerX - 6.0f, barArea.getCentreY() - 6.0f, 12.0f, 12.0f);
 
-    const int titleW = juce::jmin (area.getWidth() - 16, 240);
-    const int titleY = area.getY() + 3;
-    g.drawText (title.toUpperCase(), area.getX() + 8, titleY, titleW, 12,
-                juce::Justification::centredLeft);
+        g.setColour (juce::Colours::white);
+        g.fillRoundedRectangle (markerX - 1.5f, barArea.getY() - 2.0f,
+                                 3.0f, barArea.getHeight() + 4.0f, 1.5f);
+    }
 
-    g.setColour (PPGLookAndFeel::accent().withAlpha (0.35f));
-    g.fillRect (area.getX() + 8, titleY + 13,
-                juce::jmin (titleW, 200), 1);
+    g.setColour (theme.panelStroke);
+    g.drawRoundedRectangle (barArea, 5.0f, 1.0f);
 }
 
-void PPGWave3Editor::drawLogo (juce::Graphics& g, juce::Rectangle<int> area) const
+//==============================================================================
+void MidiHarmonicHUDEditor::drawCircleOfFifths (juce::Graphics& g, juce::Rectangle<int> area)
 {
-    const float h = (float) area.getHeight();
+    g.setColour (theme.panel);
+    g.fillRoundedRectangle (area.toFloat(), 12.0f);
+    g.setColour (theme.panelStroke);
+    g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 12.0f, 1.0f);
 
-    const float ppgSize = juce::jmax (18.0f, h * 0.75f * currentScale);
-    g.setFont (juce::Font (juce::FontOptions (ppgSize, juce::Font::bold)));
-    g.setColour (PPGLookAndFeel::accent());
+    auto inner = area.reduced (14);
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText ("CIRCLE OF FIFTHS", inner.removeFromTop (16),
+                juce::Justification::topLeft, false);
 
-    const juce::String ppgText ("PPG");
-    juce::GlyphArrangement glyphs1;
-    glyphs1.addLineOfText (g.getCurrentFont(), ppgText, 0.0f, 0.0f);
-    const int ppgW = (int) glyphs1.getBoundingBox (0, glyphs1.getNumGlyphs(), true).getWidth() + 4;
+    auto centre = area.getCentre().toFloat();
+    centre.y += 8.0f;
+    float radius = juce::jmin ((float) area.getWidth(), (float) area.getHeight()) * 0.31f;
 
-    g.drawText (ppgText, area.removeFromLeft (ppgW),
-                juce::Justification::centredLeft, false);
+    g.setColour (theme.accent.withAlpha (0.12f));
+    g.drawEllipse (centre.x - radius - 4.0f, centre.y - radius - 4.0f,
+                   (radius + 4.0f) * 2.0f, (radius + 4.0f) * 2.0f, 1.5f);
 
-    area.removeFromLeft (8);
+    float innerR = radius * 0.55f;
+    g.setColour (theme.bg.darker (0.3f));
+    g.fillEllipse (centre.x - innerR, centre.y - innerR, innerR * 2.0f, innerR * 2.0f);
 
-    const float waveSize = juce::jmax (10.0f, h * 0.42f * currentScale);
-    g.setFont (juce::Font (juce::FontOptions (waveSize, juce::Font::plain)));
-    g.setColour (PPGLookAndFeel::textPrimary());
+    if (cachedActiveCount > 0)
+    {
+        float pulse = 0.5f + 0.5f * std::sin (circleGlowPhase);
+        g.setColour (theme.accent.withAlpha (0.15f + 0.1f * pulse));
+        g.drawEllipse (centre.x - innerR - 3.0f, centre.y - innerR - 3.0f,
+                       (innerR + 3.0f) * 2.0f, (innerR + 3.0f) * 2.0f, 2.0f);
+    }
 
-    const juce::String waveText ("WAVE 3.3");
-    juce::GlyphArrangement glyphs2;
-    glyphs2.addLineOfText (g.getCurrentFont(), waveText, 0.0f, 0.0f);
-    const int waveW = (int) glyphs2.getBoundingBox (0, glyphs2.getNumGlyphs(), true).getWidth() + 4;
+    {
+        juce::Graphics::ScopedSaveState state (g);
+        g.setOpacity (chordFadeAlpha);
+        g.setColour (theme.text);
+        g.setFont (juce::Font (juce::FontOptions (18.0f).withStyle ("Bold")));
 
-    auto waveArea = area.removeFromLeft (waveW);
-    g.drawText (waveText, waveArea, juce::Justification::centredLeft, false);
+        juce::String centreText = (cachedChord.isEmpty() || cachedChord == "---")
+            ? "---" : cachedChord;
+        g.drawText (centreText,
+                    juce::Rectangle<float> (centre.x - innerR, centre.y - 12.0f,
+                                             innerR * 2.0f, 24.0f).toNearestInt(),
+                    juce::Justification::centred, false);
+    }
 
-    area.removeFromLeft (8);
-    g.setFont (juce::Font (juce::FontOptions (juce::jmax (8.0f, h * 0.28f * currentScale),
-                                              juce::Font::italic)));
-    g.setColour (PPGLookAndFeel::textDim());
-    g.drawText ("Wave Table Synthesizer", area,
-                juce::Justification::centredLeft, false);
+    for (int i = 0; i < 12; ++i)
+    {
+        int pc = kFifthOrderPC[i];
+        float angle = juce::MathConstants<float>::twoPi * ((float) i / 12.0f)
+                    - juce::MathConstants<float>::halfPi
+                    + circleRotation;
+
+        float px = centre.x + std::cos (angle) * radius;
+        float py = centre.y + std::sin (angle) * radius;
+
+        bool isRoot = (pc == cachedRootPC) && (cachedActiveCount > 0);
+        float circleSize = isRoot ? 26.0f : 20.0f;
+
+        if (isRoot)
+        {
+            float pulse = 0.5f + 0.5f * std::sin (circleGlowPhase * 1.4f);
+            g.setColour (theme.accent.withAlpha (0.25f + 0.15f * pulse));
+            g.fillEllipse (px - circleSize * 0.9f, py - circleSize * 0.9f,
+                           circleSize * 1.8f, circleSize * 1.8f);
+        }
+
+        g.setColour (isRoot ? theme.accent : theme.panelStroke);
+        g.fillEllipse (px - circleSize * 0.5f, py - circleSize * 0.5f,
+                       circleSize, circleSize);
+
+        g.setColour (isRoot ? juce::Colours::white.withAlpha (0.7f) : theme.panelStroke);
+        g.drawEllipse (px - circleSize * 0.5f, py - circleSize * 0.5f,
+                       circleSize, circleSize, 1.0f);
+
+        g.setColour (isRoot ? juce::Colours::white : theme.text.withAlpha (0.75f));
+        g.setFont (juce::Font (juce::FontOptions (isRoot ? 12.0f : 11.0f)
+                                .withStyle (isRoot ? "Bold" : "Regular")));
+
+        juce::Rectangle<float> textRect (px - 20.0f, py - 8.0f, 40.0f, 16.0f);
+        g.drawText (kPCNames[pc], textRect.toNearestInt(),
+                    juce::Justification::centred, false);
+    }
 }
 
-// ==================== resized ====================
-
-void PPGWave3Editor::resized()
+//==============================================================================
+void MidiHarmonicHUDEditor::drawPianoKeyboard (juce::Graphics& g, juce::Rectangle<int> area)
 {
-    currentScale = computeScale();
-    applyScaleToAll (currentScale);
+    g.setColour (theme.panel);
+    g.fillRoundedRectangle (area.toFloat(), 12.0f);
+    g.setColour (theme.panelStroke);
+    g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 12.0f, 1.0f);
 
-    auto r = getLocalBounds();
+    auto inner = area.reduced (14, 10);
 
-    // Header con logo + preset bar
-    auto header = r.removeFromTop (72);
-    auto presetRow = header.removeFromBottom (36).reduced (10, 4);
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText ("ACTIVE NOTES", inner.removeFromTop (14),
+                juce::Justification::topLeft, false);
 
-    const int navW   = 32;
-    const int smallW = 70;
-    const int medW   = 90;
+    inner.removeFromTop (4);
 
-    prevBtn.setBounds (presetRow.removeFromLeft (navW));
-    nextBtn.setBounds (presetRow.removeFromLeft (navW));
-    presetRow.removeFromLeft (10);
+    const int lowMidi  = 36;
+    const int highMidi = 72;
+    const int numWhite = 22;
 
-    browseBtn.setBounds (presetRow.removeFromRight (medW));
-    presetRow.removeFromRight (4);
-    saveBtn  .setBounds (presetRow.removeFromRight (smallW));
-    presetRow.removeFromRight (4);
-    loadBtn  .setBounds (presetRow.removeFromRight (smallW));
-    presetRow.removeFromRight (10);
+    auto keyArea = inner;
+    const float whiteWidth  = (float) keyArea.getWidth() / numWhite;
+    const float blackWidth  = whiteWidth * 0.62f;
+    const float blackHeight = keyArea.getHeight() * 0.62f;
 
-    presetDisplay.setBounds (presetRow);
-
-    r.reduce (6, 6);
-
-    const int h      = r.getHeight();
-    const int gap    = 6;
-    const int availH = h - 7 * gap;
-
-    const float availHf = (float) availH;
-    const int oscH  = (int) (availHf * 0.095f);
-    const int filtH = (int) (availHf * 0.095f);
-    const int lfoH  = (int) (availHf * 0.105f);
-    const int modH  = (int) (availHf * 0.155f);
-    const int fxH   = (int) (availHf * 0.265f);
-    const int envH  = availH - 2 * oscH - filtH - lfoH - modH - fxH;
-
-    osc1Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
-    osc2Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
-    filterArea = r.removeFromTop (filtH);       r.removeFromTop (gap);
-    lfoArea = r.removeFromTop (lfoH);           r.removeFromTop (gap);
-    modArea = r.removeFromTop (modH);           r.removeFromTop (gap);
-    fxArea  = r.removeFromTop (fxH);            r.removeFromTop (gap);
-
-    auto bottomRow = r.removeFromTop (envH);
+    // Teclas blancas
+    int whiteIndex = 0;
+    for (int n = lowMidi; n <= highMidi; ++n)
     {
-        const int totalW  = bottomRow.getWidth();
-        const int masterW = (int) ((float) totalW * 0.14f);
-        const int envW    = (totalW - masterW - 2 * gap) / 2;
-        ampEnvArea  = bottomRow.removeFromLeft (envW);
-        bottomRow.removeFromLeft (gap);
-        filtEnvArea = bottomRow.removeFromLeft (envW);
-        bottomRow.removeFromLeft (gap);
-        masterArea  = bottomRow;
-    }
+        if (isBlackKey (n)) continue;
 
-    auto infoWidthFor = [] (int sectionW)
-    {
-        return juce::jlimit (90, 260, (int) ((float) sectionW * 0.22f));
-    };
+        float x = keyArea.getX() + whiteIndex * whiteWidth;
+        juce::Rectangle<float> key (x, (float) keyArea.getY(),
+                                     whiteWidth, (float) keyArea.getHeight());
+        key.reduce (0.75f, 0.0f);
 
-    auto titleRowFor = [&] (juce::Rectangle<int> area, InfoDisplay& info,
-                            juce::Rectangle<int>& innerOut)
-    {
-        innerOut = area.reduced (8);
-        auto titleRow = innerOut.removeFromTop (
-            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
-        info.setBounds (titleRow.removeFromRight (
-            infoWidthFor (area.getWidth())).reduced (0, 1));
-        innerOut.removeFromTop (1);
-    };
+        bool active = cachedActiveNotes[static_cast<size_t> (n)];
 
-    // -------- Osciladores --------
-    auto layoutOscSection = [&] (juce::Rectangle<int> area,
-                                 InfoDisplay& info, ButtonSelector& waveSel,
-                                 ui::WavetablePreview& preview,
-                                 RotaryKnob& kPos, RotaryKnob& kOct, RotaryKnob& kSemi,
-                                 RotaryKnob& kFine, RotaryKnob& kLevel)
-    {
-        juce::Rectangle<int> inner;
-        titleRowFor (area, info, inner);
-
-        const int selW = (int) ((float) inner.getWidth() * 0.24f);
-        waveSel.setBounds (inner.removeFromLeft (selW).reduced (2, 3));
-        inner.removeFromLeft (4);
-        const int previewW = (int) ((float) inner.getWidth() * 0.20f);
-        preview.setBounds (inner.removeFromLeft (previewW).reduced (2, 3));
-        inner.removeFromLeft (4);
-
-        const int kw = inner.getWidth() / 5;
-        kPos  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        kOct  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        kSemi .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        kFine .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        kLevel.setBounds (inner.reduced (1, 0));
-    };
-
-    layoutOscSection (osc1Area, osc1Info, *osc1Wave, osc1Preview,
-                      osc1Pos, osc1Oct, osc1Semi, osc1Fine, osc1Level);
-    layoutOscSection (osc2Area, osc2Info, *osc2Wave, osc2Preview,
-                      osc2Pos, osc2Oct, osc2Semi, osc2Fine, osc2Level);
-
-    // -------- Filtro --------
-    {
-        juce::Rectangle<int> inner;
-        titleRowFor (filterArea, filterInfo, inner);
-        const int selW = (int) ((float) inner.getWidth() * 0.22f);
-        filterType->setBounds (inner.removeFromLeft (selW).reduced (2, 3));
-        inner.removeFromLeft (4);
-        const int kw = inner.getWidth() / 4;
-        filterCutoff  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filterReso    .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filterEnvAmt  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filterKeyTrack.setBounds (inner.reduced (1, 0));
-    }
-
-    // -------- LFO --------
-    {
-        juce::Rectangle<int> inner;
-        titleRowFor (lfoArea, lfoInfo, inner);
-        const int halfW = (inner.getWidth() - gap) / 2;
-
-        auto layoutLFO = [&] (juce::Rectangle<int> area,
-                              ComboBoxSelector& w, ComboBoxSelector& sync,
-                              ui::LFODisplay& display,
-                              RotaryKnob& rate, RotaryKnob& depth, RotaryKnob& phase)
+        if (active)
         {
-            const int comboW = (int) ((float) area.getWidth() * 0.16f);
-            w.setBounds (area.removeFromLeft (comboW).reduced (2, 0));
-            area.removeFromLeft (2);
-            sync.setBounds (area.removeFromLeft (comboW).reduced (2, 0));
-            area.removeFromLeft (4);
-            const int dispW = (int) ((float) area.getWidth() * 0.30f);
-            display.setBounds (area.removeFromLeft (dispW).reduced (2, 3));
-            area.removeFromLeft (4);
-            const int kw = area.getWidth() / 3;
-            rate .setBounds (area.removeFromLeft (kw).reduced (1, 0));
-            depth.setBounds (area.removeFromLeft (kw).reduced (1, 0));
-            phase.setBounds (area.reduced (1, 0));
-        };
+            juce::ColourGradient grad (theme.accent.brighter (0.3f), key.getX(), key.getY(),
+                                        theme.accent.darker (0.2f), key.getX(), key.getBottom(), false);
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (key, 2.0f);
 
-        auto lfo1Zone = inner.removeFromLeft (halfW);
-        inner.removeFromLeft (gap);
-        auto lfo2Zone = inner;
-
-        layoutLFO (lfo1Zone, *lfo1Wave, *lfo1Sync, lfo1Display,
-                   lfo1Rate, lfo1Depth, lfo1Phase);
-        layoutLFO (lfo2Zone, *lfo2Wave, *lfo2Sync, lfo2Display,
-                   lfo2Rate, lfo2Depth, lfo2Phase);
-    }
-
-    // -------- Mod Matrix --------
-    {
-        juce::Rectangle<int> inner;
-        titleRowFor (modArea, modInfo, inner);
-        const int rowH = inner.getHeight() / 4;
-
-        auto layoutRow = [&] (juce::Rectangle<int> row,
-                              ComboBoxSelector& src, ComboBoxSelector& dst, HSlider& amt)
-        {
-            const int srcW = (int) ((float) row.getWidth() * 0.35f);
-            const int dstW = (int) ((float) row.getWidth() * 0.35f);
-            src.setBounds (row.removeFromLeft (srcW).reduced (2, 1));
-            dst.setBounds (row.removeFromLeft (dstW).reduced (2, 1));
-            amt.setBounds (row.reduced (2, 1));
-        };
-
-        layoutRow (inner.removeFromTop (rowH), *mod1Src, *mod1Dst, mod1Amt);
-        layoutRow (inner.removeFromTop (rowH), *mod2Src, *mod2Dst, mod2Amt);
-        layoutRow (inner.removeFromTop (rowH), *mod3Src, *mod3Dst, mod3Amt);
-        layoutRow (inner,                        *mod4Src, *mod4Dst, mod4Amt);
-    }
-
-    // -------- Effects con tabs --------
-    {
-        juce::Rectangle<int> inner;
-        titleRowFor (fxArea, fxInfo, inner);
-
-        // Fila de tabs
-        auto tabRow = inner.removeFromTop (24);
-        const int tabW = tabRow.getWidth() / 4;
-        driveTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
-        chorusTabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
-        delayTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
-        reverbTabBtn.setBounds (tabRow.reduced (1, 0));
-
-        inner.removeFromTop (6);
-
-        // Área de controles (común a todas las pestañas)
-        const auto controlsArea = inner.reduced (30, 4);
-
-        // Helper: layout de toggle + 3 knobs en todo el ancho
-        auto layoutFullRow = [] (juce::Rectangle<int> area,
-                                 ToggleButton& on,
-                                 RotaryKnob& k1, RotaryKnob& k2, RotaryKnob& k3)
-        {
-            // Toggle alineado verticalmente al centro
-            auto toggleArea = area.removeFromLeft (110);
-            on.setBounds (toggleArea.withSizeKeepingCentre (
-                toggleArea.getWidth() - 12, 40));
-
-            area.removeFromLeft (24);
-
-            const int kw = area.getWidth() / 3;
-            k1.setBounds (area.removeFromLeft (kw).reduced (6, 0));
-            k2.setBounds (area.removeFromLeft (kw).reduced (6, 0));
-            k3.setBounds (area.reduced (6, 0));
-        };
-
-        // Drive
-        {
-            auto area = controlsArea;
-            layoutFullRow (area, *driveOn, driveAmount, driveTone, driveMix);
+            g.setColour (juce::Colours::white.withAlpha (0.4f));
+            g.fillRoundedRectangle (key.withHeight (3.0f), 1.5f);
         }
-        // Chorus
+        else
         {
-            auto area = controlsArea;
-            layoutFullRow (area, *chorusOn, chorusRate, chorusDepth, chorusMix);
+            g.setColour (theme.text.withAlpha (0.9f));
+            g.fillRoundedRectangle (key, 2.0f);
         }
-        // Delay (con SYNC combo extra)
+
+        g.setColour (theme.panelStroke);
+        g.drawRoundedRectangle (key, 2.0f, 1.0f);
+
+        if (n % 12 == 0 && whiteWidth > 20.0f)
         {
-            auto area = controlsArea;
-
-            auto toggleArea = area.removeFromLeft (110);
-            delayOn->setBounds (toggleArea.withSizeKeepingCentre (
-                toggleArea.getWidth() - 12, 40));
-
-            area.removeFromLeft (16);
-
-            auto syncArea = area.removeFromLeft (150);
-            delaySync->setBounds (syncArea.withSizeKeepingCentre (
-                syncArea.getWidth() - 12, 52));
-
-            area.removeFromLeft (16);
-
-            const int kw = area.getWidth() / 3;
-            delayTime    .setBounds (area.removeFromLeft (kw).reduced (6, 0));
-            delayFeedback.setBounds (area.removeFromLeft (kw).reduced (6, 0));
-            delayMix     .setBounds (area.reduced (6, 0));
+            g.setColour (active ? juce::Colours::white : theme.dimText);
+            g.setFont (juce::Font (juce::FontOptions (8.5f).withStyle ("Bold")));
+            g.drawText ("C" + juce::String (n / 12 - 1),
+                        key.toNearestInt().removeFromBottom (12),
+                        juce::Justification::centred, false);
         }
-        // Reverb
-        {
-            auto area = controlsArea;
-            layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix);
-        }
+
+        ++whiteIndex;
     }
 
-    // -------- Amp Env --------
+    // Teclas negras
+    whiteIndex = 0;
+    for (int n = lowMidi; n <= highMidi; ++n)
     {
-        juce::Rectangle<int> inner;
-        titleRowFor (ampEnvArea, ampEnvInfo, inner);
+        if (!isBlackKey (n)) { ++whiteIndex; continue; }
 
-        const int dispH = (int) ((float) inner.getHeight() * 0.40f);
-        ampEnvDisplay.setBounds (inner.removeFromTop (dispH).reduced (2, 2));
+        float x = keyArea.getX() + whiteIndex * whiteWidth - blackWidth * 0.5f;
+        juce::Rectangle<float> key (x, (float) keyArea.getY(), blackWidth, blackHeight);
+
+        bool active = cachedActiveNotes[static_cast<size_t> (n)];
+
+        if (active)
+        {
+            juce::ColourGradient grad (theme.accent2.brighter (0.3f), key.getX(), key.getY(),
+                                        theme.accent2.darker (0.3f), key.getX(), key.getBottom(), false);
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (key, 2.0f);
+
+            g.setColour (juce::Colours::white.withAlpha (0.5f));
+            g.fillRoundedRectangle (key.withHeight (2.5f), 1.25f);
+        }
+        else
+        {
+            juce::ColourGradient grad (theme.bg.brighter (0.3f), key.getX(), key.getY(),
+                                        theme.bg.darker (0.5f), key.getX(), key.getBottom(), false);
+            g.setGradientFill (grad);
+            g.fillRoundedRectangle (key, 2.0f);
+        }
+
+        g.setColour (juce::Colour (0xff000000).withAlpha (0.7f));
+        g.drawRoundedRectangle (key, 2.0f, 1.0f);
+    }
+}
+
+//==============================================================================
+void MidiHarmonicHUDEditor::drawHistoryPanel (juce::Graphics& g, juce::Rectangle<int> area)
+{
+    g.setColour (theme.panel);
+    g.fillRoundedRectangle (area.toFloat(), 12.0f);
+    g.setColour (theme.panelStroke);
+    g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 12.0f, 1.0f);
+
+    auto inner = area.reduced (14);
+
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText ("HISTORY (FIFO - last 4)", inner.removeFromTop (16),
+                juce::Justification::topLeft, false);
+
+    inner.removeFromTop (6);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        auto rowArea = inner.removeFromTop (30);
         inner.removeFromTop (2);
 
-        const int kw = inner.getWidth() / 4;
-        ampA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        ampD.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        ampS.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        ampR.setBounds (inner.reduced (1, 0));
-    }
+        bool hasItem = i < cachedHistory.size();
 
-    // -------- Filter Env --------
+        g.setColour (theme.dimText.withAlpha (0.6f));
+        g.setFont (juce::Font (juce::FontOptions (10.0f).withStyle ("Bold")));
+        g.drawText ("#" + juce::String (i + 1),
+                    rowArea.removeFromLeft (26),
+                    juce::Justification::centredLeft, false);
+
+        if (hasItem)
+        {
+            bool isLatest = (i == 0);
+            juce::Colour chipColour = isLatest ? theme.accent : theme.accent2.withAlpha (0.4f);
+
+            auto chipArea = rowArea.reduced (0, 2);
+
+            g.setColour (chipColour.withAlpha (isLatest ? 0.2f : 0.08f));
+            g.fillRoundedRectangle (chipArea.toFloat(), 6.0f);
+
+            if (isLatest)
+            {
+                g.setColour (chipColour);
+                g.fillRoundedRectangle (chipArea.toFloat().withWidth (3.0f), 1.5f);
+            }
+
+            g.setColour (isLatest ? theme.text : theme.text.withAlpha (0.75f));
+            g.setFont (juce::Font (juce::FontOptions (14.0f)
+                                    .withStyle (isLatest ? "Bold" : "Regular")));
+            g.drawText (cachedHistory[i],
+                        chipArea.reduced (10, 0),
+                        juce::Justification::centredLeft, false);
+        }
+        else
+        {
+            g.setColour (theme.dimText.withAlpha (0.35f));
+            g.setFont (juce::Font (juce::FontOptions (12.0f).withStyle ("Regular")));
+            g.drawText ("--", rowArea, juce::Justification::centredLeft, false);
+        }
+    }
+}
+
+//==============================================================================
+void MidiHarmonicHUDEditor::drawDiatonicPanel (juce::Graphics& g, juce::Rectangle<int> area)
+{
+    g.setColour (theme.panel);
+    g.fillRoundedRectangle (area.toFloat(), 12.0f);
+    g.setColour (theme.panelStroke);
+    g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 12.0f, 1.0f);
+
+    auto inner = area.reduced (14);
+
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText ("DIATONIC INFO", inner.removeFromTop (16),
+                juce::Justification::topLeft, false);
+
+    inner.removeFromTop (6);
+
+    auto drawInfoRow = [&] (const juce::String& label, const juce::String& value,
+                            juce::Colour valueColour)
     {
-        juce::Rectangle<int> inner;
-        titleRowFor (filtEnvArea, filtEnvInfo, inner);
+        auto row = inner.removeFromTop (22);
+        g.setColour (theme.dimText);
+        g.setFont (juce::Font (juce::FontOptions (11.0f).withStyle ("Regular")));
+        g.drawText (label, row.removeFromLeft (110),
+                    juce::Justification::centredLeft, false);
 
-        const int dispH = (int) ((float) inner.getHeight() * 0.40f);
-        filtEnvDisplay.setBounds (inner.removeFromTop (dispH).reduced (2, 2));
-        inner.removeFromTop (2);
+        g.setColour (valueColour);
+        g.setFont (juce::Font (juce::FontOptions (13.0f).withStyle ("Bold")));
+        g.drawText (value, row, juce::Justification::centredLeft, false);
+    };
 
-        const int kw = inner.getWidth() / 4;
-        filtA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filtD.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filtS.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filtR.setBounds (inner.reduced (1, 0));
-    }
+    drawInfoRow ("Active notes:", juce::String (cachedActiveCount),
+                 cachedActiveCount > 0 ? theme.accent : theme.dimText);
 
-    // -------- Master --------
+    juce::String rootStr = "---";
+    if (cachedRootPC >= 0 && cachedActiveCount > 0)
+        rootStr = juce::String (kPCNames[cachedRootPC]);
+    drawInfoRow ("Root:", rootStr,
+                 cachedRootPC >= 0 ? theme.accent2 : theme.dimText);
+
+    // Inversión
+    juce::String invStr = "Fundamental";
+    if (cachedInversion == 1) invStr = "1st inversion";
+    else if (cachedInversion == 2) invStr = "2nd inversion";
+    else if (cachedInversion == 3) invStr = "Other";
+    if (cachedActiveCount == 0) invStr = "---";
+    drawInfoRow ("Inversion:", invStr,
+                 cachedInversion > 0 ? theme.accent3 : theme.dimText);
+
+    // Tonalidad
+    drawInfoRow ("Detected key:", cachedKeyText,
+                 cachedKeyConfidence > 0.6f ? theme.accent3 : theme.text.withAlpha (0.75f));
+}
+
+//==============================================================================
+void MidiHarmonicHUDEditor::drawTensionGraph (juce::Graphics& g, juce::Rectangle<int> area)
+{
+    g.setColour (theme.panel);
+    g.fillRoundedRectangle (area.toFloat(), 12.0f);
+    g.setColour (theme.panelStroke);
+    g.drawRoundedRectangle (area.toFloat().reduced (0.5f), 12.0f, 1.0f);
+
+    auto inner = area.reduced (14, 10);
+
+    g.setColour (theme.dimText);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    g.drawText ("HARMONIC TENSION HISTORY", inner.removeFromTop (16),
+                juce::Justification::topLeft, false);
+
+    inner.removeFromTop (4);
+
+    auto graphArea = inner.toFloat();
+
+    // Grid horizontal
+    g.setColour (theme.panelStroke.withAlpha (0.5f));
+    for (int i = 0; i <= 4; ++i)
     {
-        auto inner = masterArea.reduced (8);
-        auto titleRow = inner.removeFromTop (
-            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
-        masterInfo.setBounds (titleRow.reduced (0, 1));
-        inner.removeFromTop (1);
-
-        const int meterW = juce::jmax (8, juce::roundToInt (12.0f * currentScale));
-        masterMeter.setBounds (inner.removeFromRight (meterW).reduced (2, 4));
-        inner.removeFromRight (4);
-        master.setBounds (inner.reduced (2, 0));
+        float y = graphArea.getY() + graphArea.getHeight() * ((float) i / 4.0f);
+        g.drawHorizontalLine ((int) y, graphArea.getX(), graphArea.getRight());
     }
+
+    // Encontrar el rango de posiciones en el buffer circular
+    int writePos = processorRef.tensionHistoryWritePos.load();
+    const int N = MidiHarmonicHUDProcessor::TENSION_HISTORY_SIZE;
+    int totalPoints = juce::jmin (N, (int) (cachedTensionHistory.size()));
+
+    if (totalPoints < 2) return;
+
+    // Construir el path
+    juce::Path path;
+    bool firstPoint = true;
+
+    for (int i = 0; i < totalPoints; ++i)
+    {
+        // Leer desde el más antiguo al más reciente
+        int readIdx = (writePos + i) % N;
+        float value = cachedTensionHistory[readIdx];
+
+        float x = graphArea.getX()
+                + graphArea.getWidth() * ((float) i / (float) (totalPoints - 1));
+        float y = graphArea.getBottom()
+                - graphArea.getHeight() * juce::jlimit (0.0f, 1.0f, value);
+
+        if (firstPoint) { path.startNewSubPath (x, y); firstPoint = false; }
+        else             path.lineTo (x, y);
+    }
+
+    // Relleno bajo la curva con gradiente
+    {
+        juce::Path filled = path;
+        filled.lineTo (graphArea.getRight(), graphArea.getBottom());
+        filled.lineTo (graphArea.getX(),     graphArea.getBottom());
+        filled.closeSubPath();
+
+        juce::ColourGradient fillGrad (theme.accent.withAlpha (0.3f),
+                                        graphArea.getCentreX(), graphArea.getY(),
+                                        theme.danger.withAlpha (0.0f),
+                                        graphArea.getCentreX(), graphArea.getBottom(),
+                                        false);
+        g.setGradientFill (fillGrad);
+        g.fillPath (filled);
+    }
+
+    // Línea principal
+    g.setColour (theme.accent);
+    g.strokePath (path, juce::PathStrokeType (2.0f));
+
+    // Punto en el valor actual
+    if (totalPoints > 0)
+    {
+        float currentValue = cachedTensionHistory[(writePos - 1 + N) % N];
+        float x = graphArea.getRight();
+        float y = graphArea.getBottom()
+                - graphArea.getHeight() * juce::jlimit (0.0f, 1.0f, currentValue);
+
+        g.setColour (juce::Colours::white.withAlpha (0.3f));
+        g.fillEllipse (x - 6.0f, y - 6.0f, 12.0f, 12.0f);
+        g.setColour (juce::Colours::white);
+        g.fillEllipse (x - 3.0f, y - 3.0f, 6.0f, 6.0f);
+    }
+}
+
+//==============================================================================
+void MidiHarmonicHUDEditor::resized()
+{
+    // Botón mute arriba a la derecha
+    muteButton.setBounds (getWidth() - 120, 10, 110, 28);
+
+    // Combos a la izquierda del mute
+    themeLabel.setBounds (getWidth() - 380, 12, 50, 24);
+    themeCombo.setBounds (getWidth() - 328, 12, 130, 24);
+
+    presetLabel.setBounds (getWidth() - 190, 12, 55, 24);
+    presetCombo.setBounds (getWidth() - 133, 12, 130, 24);
+}
+
+//==============================================================================
+void MidiHarmonicHUDEditor::timerCallback()
+{
+    // Captura de estado
+    {
+        const juce::ScopedLock sl (processorRef.currentChordLock);
+        cachedChord = processorRef.currentChord;
+    }
+    {
+        const juce::ScopedLock sl (processorRef.chordHistoryLock);
+        cachedHistory = processorRef.chordHistory;
+    }
+    {
+        const juce::ScopedLock sl (processorRef.currentKeyLock);
+        cachedKeyText = processorRef.currentKeyText;
+    }
+
+    int count = 0;
+    for (int i = 0; i < 128; ++i)
+    {
+        bool on = processorRef.activeMidiNotes[i].load();
+        cachedActiveNotes[static_cast<size_t> (i)] = on;
+        if (on) ++count;
+    }
+    cachedActiveCount = count;
+
+    cachedConfidence = processorRef.chordConfidence.load();
+    cachedTension    = processorRef.harmonicTension.load();
+    cachedRootPC     = processorRef.currentRootPC.load();
+    cachedBassPC     = processorRef.currentBassPC.load();
+    cachedInversion  = processorRef.currentInversion.load();
+    cachedKeyConfidence = processorRef.detectedKeyConfidence.load();
+
+    // Copiar buffer circular de tensión
+    for (int i = 0; i < MidiHarmonicHUDProcessor::TENSION_HISTORY_SIZE; ++i)
+        cachedTensionHistory[i] = processorRef.tensionHistory[i].load();
+
+    // Animación: fade del acorde
+    if (cachedChord != lastDisplayedChord)
+    {
+        lastDisplayedChord = cachedChord;
+        chordChangeTimeMs = juce::Time::getMillisecondCounter();
+    }
+    auto elapsed = juce::Time::getMillisecondCounter() - chordChangeTimeMs;
+    chordFadeAlpha = juce::jmin (1.0f, (float) elapsed / 350.0f);
+
+    // Interpolación suave
+    confidenceSmooth += (cachedConfidence - confidenceSmooth) * 0.18f;
+    tensionSmooth    += (cachedTension    - tensionSmooth)    * 0.18f;
+
+    // Rotación del círculo
+    if (cachedRootPC >= 0)
+    {
+        int rootIndex = 0;
+        for (int i = 0; i < 12; ++i)
+            if (kFifthOrderPC[i] == cachedRootPC) { rootIndex = i; break; }
+
+        targetRotation = -juce::MathConstants<float>::twoPi
+                       * ((float) rootIndex / 12.0f);
+    }
+
+    float diff = targetRotation - circleRotation;
+    while (diff >  juce::MathConstants<float>::pi) diff -= juce::MathConstants<float>::twoPi;
+    while (diff < -juce::MathConstants<float>::pi) diff += juce::MathConstants<float>::twoPi;
+    circleRotation += diff * 0.12f;
+
+    // Glow pulsante
+    circleGlowPhase += 0.08f;
+    if (circleGlowPhase > juce::MathConstants<float>::twoPi)
+        circleGlowPhase -= juce::MathConstants<float>::twoPi;
 
     repaint();
 }
