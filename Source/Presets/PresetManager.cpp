@@ -14,7 +14,7 @@ namespace presets
             "filter_type":0,"filter_cutoff":8000,"filter_reso":0.0,"filter_env_amt":0.0,
             "amp_attack":0.005,"amp_decay":0.1,"amp_sustain":0.7,"amp_release":0.3,
             "filt_attack":0.005,"filt_decay":0.2,"filt_sustain":0.5,"filt_release":0.3,
-            "master_gain":0.7}})"],
+            "master_gain":0.7})"],
 
         // ================================================================
         // BASS
