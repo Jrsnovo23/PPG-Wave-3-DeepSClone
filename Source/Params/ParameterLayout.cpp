@@ -55,14 +55,17 @@ namespace Params
             "1/4T", "1/8T", "1/16T", "1/4.", "1/8."
         };
 
+        // FASE 6.5: "Envelope 3" añadido al FINAL para no romper presets previos.
         const juce::StringArray modSources {
             "None", "LFO 1", "LFO 2", "Envelope 1", "Envelope 2",
-            "Velocity", "Mod Wheel", "Aftertouch", "Note Number", "Random"
+            "Velocity", "Mod Wheel", "Aftertouch", "Note Number", "Random",
+            "Envelope 3"
         };
 
+        // FASE 6.5: "Filter Reso" y "OSC2 Fine" añadidos al FINAL.
         const juce::StringArray modDests {
             "None", "OSC1 Pitch", "OSC2 Pitch", "OSC1 Wave Pos", "OSC2 Wave Pos",
-            "Filter Cutoff", "Amplifier"
+            "Filter Cutoff", "Amplifier", "Filter Reso", "OSC2 Fine"
         };
 
         // ============ Oscilador 1 ============
@@ -81,7 +84,7 @@ namespace Params
         makeFloat  (ParamIDs::osc2Fine,   "Osc2 Fine", -100.0f, 100.0f, 0.0f, "ct");
         makeFloat  (ParamIDs::osc2Level,  "Osc2 Level",  0.0f, 1.0f, 0.0f);
 
-        // ============ Amp Envelope ============
+        // ============ Amp Envelope (ENV1) ============
         makeFloat (ParamIDs::ampAttack,  "Amp Attack",  0.001f, 5.0f, 0.005f, "s");
         makeFloat (ParamIDs::ampDecay,   "Amp Decay",   0.001f, 5.0f, 0.100f, "s");
         makeFloat (ParamIDs::ampSustain, "Amp Sustain", 0.0f,   1.0f, 0.700f);
@@ -94,11 +97,17 @@ namespace Params
         makeFloat    (ParamIDs::filterEnvAmt,   "Filter Env Amt", -1.0f, 1.0f, 0.0f);
         makeFloat    (ParamIDs::filterKeyTrack, "Filter Key Track", 0.0f, 1.0f, 0.0f);
 
-        // ============ Filter Envelope ============
+        // ============ Filter Envelope (ENV2) ============
         makeFloat (ParamIDs::filtAttack,  "Filt Attack",  0.001f, 5.0f, 0.005f, "s");
         makeFloat (ParamIDs::filtDecay,   "Filt Decay",   0.001f, 5.0f, 0.200f, "s");
         makeFloat (ParamIDs::filtSustain, "Filt Sustain", 0.0f,   1.0f, 0.500f);
         makeFloat (ParamIDs::filtRelease, "Filt Release", 0.001f, 10.0f, 0.300f, "s");
+
+        // ============ FASE 6.5: Envelope 3 (libre) ============
+        makeFloat (ParamIDs::env3Attack,  "Env3 Attack",  0.001f, 5.0f, 0.005f, "s");
+        makeFloat (ParamIDs::env3Decay,   "Env3 Decay",   0.001f, 5.0f, 0.200f, "s");
+        makeFloat (ParamIDs::env3Sustain, "Env3 Sustain", 0.0f,   1.0f, 0.500f);
+        makeFloat (ParamIDs::env3Release, "Env3 Release", 0.001f, 10.0f, 0.300f, "s");
 
         // ============ Master ============
         makeFloat (ParamIDs::masterGain, "Master", 0.0f, 1.0f, 0.7f);
