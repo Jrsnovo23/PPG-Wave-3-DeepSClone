@@ -143,6 +143,7 @@ private:
     void  onBrowsePreset();
 
     void  updateFxVisibility();
+    void  updateEnvVisibility();   // FASE 6.5
 
     PPGWave3Processor& processorRef;
     juce::AudioProcessorValueTreeState& apvts;
@@ -157,7 +158,7 @@ private:
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     InfoDisplay osc1Info, osc2Info, filterInfo;
-    InfoDisplay ampEnvInfo, filtEnvInfo, masterInfo;
+    InfoDisplay envInfo, masterInfo;             // FASE 6.5: envInfo único
     InfoDisplay lfoInfo, modInfo, fxInfo;
 
     // Osciladores
@@ -172,11 +173,13 @@ private:
     std::unique_ptr<ButtonSelector> filterType;
     RotaryKnob filterCutoff, filterReso, filterEnvAmt, filterKeyTrack;
 
-    // Envelopes
-    ui::EnvelopeDisplay ampEnvDisplay;
-    ui::EnvelopeDisplay filtEnvDisplay;
-    RotaryKnob ampA, ampD, ampS, ampR;
-    RotaryKnob filtA, filtD, filtS, filtR;
+    // ===== FASE 6.5: Envelopes con tabs (ENV1 = Amp, ENV2 = Filter, ENV3 = libre) =====
+    ui::EnvelopeDisplay env1Display, env2Display, env3Display;
+    RotaryKnob env1A, env1D, env1S, env1R;
+    RotaryKnob env2A, env2D, env2S, env2R;
+    RotaryKnob env3A, env3D, env3S, env3R;
+    juce::TextButton env1TabBtn, env2TabBtn, env3TabBtn;
+    int activeEnvTab = 0;   // 0=ENV1, 1=ENV2, 2=ENV3
 
     // Master
     RotaryKnob master;
@@ -220,8 +223,7 @@ private:
 
     juce::Rectangle<int> osc1Area, osc2Area, filterArea;
     juce::Rectangle<int> lfoArea, modArea, fxArea;
-    juce::Rectangle<int> ampEnvArea, filtEnvArea, masterArea;
-
+    juce::Rectangle<int> envArea, masterArea;    // FASE 6.5: envArea único
     juce::Rectangle<int> presetBarArea;
 
     float currentScale = 1.0f;
