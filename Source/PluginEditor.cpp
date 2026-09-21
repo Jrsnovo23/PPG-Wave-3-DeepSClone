@@ -333,14 +333,14 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       filterReso    (p.apvts, ParamIDs::filterReso,     "RESO",    &filterInfo),
       filterEnvAmt  (p.apvts, ParamIDs::filterEnvAmt,   "ENV AMT", &filterInfo),
       filterKeyTrack(p.apvts, ParamIDs::filterKeyTrack, "KEY TRK", &filterInfo),
-      ampEnvDisplay (p.apvts, ParamIDs::ampAttack, ParamIDs::ampDecay,
-                     ParamIDs::ampSustain, ParamIDs::ampRelease),
+      ampEnvDisplay  (p.apvts, ParamIDs::ampAttack, ParamIDs::ampDecay,
+                      ParamIDs::ampSustain, ParamIDs::ampRelease),
+      filtEnvDisplay (p.apvts, ParamIDs::filtAttack, ParamIDs::filtDecay,
+                      ParamIDs::filtSustain, ParamIDs::filtRelease),
       ampA (p.apvts, ParamIDs::ampAttack,  "A", &ampEnvInfo),
       ampD (p.apvts, ParamIDs::ampDecay,   "D", &ampEnvInfo),
       ampS (p.apvts, ParamIDs::ampSustain, "S", &ampEnvInfo),
       ampR (p.apvts, ParamIDs::ampRelease, "R", &ampEnvInfo),
-      filtEnvDisplay (p.apvts, ParamIDs::filtAttack, ParamIDs::filtDecay,
-                      ParamIDs::filtSustain, ParamIDs::filtRelease),
       filtA (p.apvts, ParamIDs::filtAttack,  "A", &filtEnvInfo),
       filtD (p.apvts, ParamIDs::filtDecay,   "D", &filtEnvInfo),
       filtS (p.apvts, ParamIDs::filtSustain, "S", &filtEnvInfo),
@@ -458,4 +458,605 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 
     std::initializer_list<juce::Component*> allKnobs {
         &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
-        &osc2Pos, &osc2Oct, &osc2Semi, &os
+        &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
+        &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
+        &ampA, &ampD, &ampS, &ampR,
+        &filtA, &filtD, &filtS, &filtR,
+        &master,
+        &lfo1Rate, &lfo1Depth, &lfo1Phase,
+        &lfo2Rate, &lfo2Depth, &lfo2Phase,
+        &driveAmount, &driveTone, &driveMix,
+        &chorusRate, &chorusDepth, &chorusMix,
+        &delayTime, &delayFeedback, &delayMix,
+        &reverbSize, &reverbDamp, &reverbMix,
+        &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt
+    };
+    for (auto* c : allKnobs)
+        addAndMakeVisible (c);
+
+    setLookAndFeel (&ppgLnf);
+
+    setResizable (false, false);
+    setSize (1280, 860);
+
+    // Activar primera pestaña
+    updateFxVisibility();
+}
+
+PPGWave3Editor::~PPGWave3Editor()
+{
+    setLookAndFeel (nullptr);
+}
+
+// ==================== FX Tab visibility ====================
+
+void PPGWave3Editor::updateFxVisibility()
+{
+    const bool d  = (activeFxTab == 0);
+    const bool c  = (activeFxTab == 1);
+    const bool dl = (activeFxTab == 2);
+    const bool r  = (activeFxTab == 3);
+
+    driveOn    ->setVisible (d);
+    driveAmount.setVisible (d);
+    driveTone  .setVisible (d);
+    driveMix   .setVisible (d);
+
+    chorusOn   ->setVisible (c);
+    chorusRate .setVisible (c);
+    chorusDepth.setVisible (c);
+    chorusMix  .setVisible (c);
+
+    delayOn    ->setVisible (dl);
+    delaySync  ->setVisible (dl);
+    delayTime  .setVisible (dl);
+    delayFeedback.setVisible (dl);
+    delayMix   .setVisible (dl);
+
+    reverbOn   ->setVisible (r);
+    reverbSize .setVisible (r);
+    reverbDamp .setVisible (r);
+    reverbMix  .setVisible (r);
+
+    driveTabBtn .setToggleState (d,  juce::dontSendNotification);
+    chorusTabBtn.setToggleState (c,  juce::dontSendNotification);
+    delayTabBtn .setToggleState (dl, juce::dontSendNotification);
+    reverbTabBtn.setToggleState (r,  juce::dontSendNotification);
+}
+
+// ==================== Preset actions ====================
+
+void PPGWave3Editor::updatePresetDisplay()
+{
+    const int idx = presetManager.getCurrentIndex();
+    const auto& list = presetManager.getAllPresets();
+
+    if (idx >= 0 && idx < list.size())
+    {
+        const auto& info = list.getReference (idx);
+        presetDisplay.setInfo (info.name, info.category, info.isFactory);
+    }
+    else
+    {
+        presetDisplay.setInfo (presetManager.getCurrentName(),
+                               presetManager.getCurrentCategory(), true);
+    }
+}
+
+void PPGWave3Editor::onPrevPreset()
+{
+    presetManager.prev();
+    updatePresetDisplay();
+}
+
+void PPGWave3Editor::onNextPreset()
+{
+    presetManager.next();
+    updatePresetDisplay();
+}
+
+void PPGWave3Editor::onLoadPreset()
+{
+    presetManager.refresh();
+    presetManager.loadByIndex (presetManager.getCurrentIndex());
+    updatePresetDisplay();
+}
+
+void PPGWave3Editor::onSavePreset()
+{
+    auto* window = new juce::AlertWindow ("Save Preset",
+                                          "Enter preset name and category:",
+                                          juce::MessageBoxIconType::NoIcon);
+    window->addTextEditor ("name", presetManager.getCurrentName(), "Name:");
+    window->addComboBox ("cat",
+                         { "Bass","Lead","Pad","Keys","Bell","Pluck",
+                           "Sequence","FX","Atmospheric","Digital",
+                           "Experimental","Percussive" },
+                         "Category:");
+    window->addButton ("Save",   1, juce::KeyPress (juce::KeyPress::returnKey));
+    window->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+
+    window->enterModalState (true,
+        juce::ModalCallbackFunction::create ([this, window] (int result)
+        {
+            if (result == 1)
+            {
+                auto name = window->getTextEditorContents ("name");
+                auto* cb  = window->getComboBoxComponent ("cat");
+                auto cat  = cb != nullptr ? cb->getText() : juce::String ("User");
+
+                if (name.isNotEmpty())
+                {
+                    presetManager.saveUserPreset (name, cat);
+                    updatePresetDisplay();
+                }
+            }
+        }),
+        true);
+}
+
+void PPGWave3Editor::onBrowsePreset()
+{
+    fileChooser = std::make_unique<juce::FileChooser> (
+        "Load Preset",
+        presetManager.getUserPresetDirectory(),
+        "*.json");
+
+    fileChooser->launchAsync (
+        juce::FileBrowserComponent::openMode |
+        juce::FileBrowserComponent::canSelectFiles,
+        [this] (const juce::FileChooser& fc)
+        {
+            auto file = fc.getResult();
+            if (file.existsAsFile())
+            {
+                presetManager.loadFromFile (file);
+                updatePresetDisplay();
+            }
+        });
+}
+
+// ==================== Scale ====================
+
+float PPGWave3Editor::computeScale() const
+{
+    const float refH = 860.0f;
+    return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
+}
+
+void PPGWave3Editor::applyScaleToAll (float scaleValue)
+{
+    for (auto* k : { &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
+                     &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
+                     &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
+                     &ampA, &ampD, &ampS, &ampR,
+                     &filtA, &filtD, &filtS, &filtR,
+                     &master,
+                     &lfo1Rate, &lfo1Depth, &lfo1Phase,
+                     &lfo2Rate, &lfo2Depth, &lfo2Phase,
+                     &driveAmount, &driveTone, &driveMix,
+                     &chorusRate, &chorusDepth, &chorusMix,
+                     &delayTime, &delayFeedback, &delayMix,
+                     &reverbSize, &reverbDamp, &reverbMix })
+        k->setScale (scaleValue);
+
+    for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
+                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
+                     &lfoInfo, &modInfo, &fxInfo })
+        d->setScale (scaleValue);
+
+    for (auto* h : { &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt })
+        h->setScale (scaleValue);
+
+    osc1Wave  ->setScale (scaleValue);
+    osc2Wave  ->setScale (scaleValue);
+    filterType->setScale (scaleValue);
+
+    lfo1Wave->setScale (scaleValue);  lfo2Wave->setScale (scaleValue);
+    lfo1Sync->setScale (scaleValue);  lfo2Sync->setScale (scaleValue);
+    delaySync->setScale (scaleValue);
+
+    mod1Src->setScale (scaleValue);  mod1Dst->setScale (scaleValue);
+    mod2Src->setScale (scaleValue);  mod2Dst->setScale (scaleValue);
+    mod3Src->setScale (scaleValue);  mod3Dst->setScale (scaleValue);
+    mod4Src->setScale (scaleValue);  mod4Dst->setScale (scaleValue);
+
+    driveOn ->setScale (scaleValue);
+    chorusOn->setScale (scaleValue);
+    delayOn ->setScale (scaleValue);
+    reverbOn->setScale (scaleValue);
+}
+
+// ==================== paint ====================
+
+void PPGWave3Editor::paint (juce::Graphics& g)
+{
+    g.fillAll (PPGLookAndFeel::bgApp());
+
+    auto top = getLocalBounds().removeFromTop (72);
+    {
+        juce::ColourGradient grad (juce::Colour (0xff0a0a0a),
+                                   0.0f, (float) top.getY(),
+                                   juce::Colour (0xff1a1a1a),
+                                   0.0f, (float) top.getBottom(), false);
+        g.setGradientFill (grad);
+        g.fillRect (top);
+
+        g.setColour (PPGLookAndFeel::accent());
+        g.fillRect (top.getX(), top.getBottom() - 1, top.getWidth(), 1);
+
+        auto logoRow = top.removeFromTop (36);
+        drawLogo (g, logoRow.reduced (10, 4));
+    }
+
+    drawSection (g, osc1Area,    "OSCILLATOR 1");
+    drawSection (g, osc2Area,    "OSCILLATOR 2");
+    drawSection (g, filterArea,  "FILTER");
+    drawSection (g, lfoArea,     "LFO");
+    drawSection (g, modArea,     "MODULATION MATRIX");
+    drawSection (g, fxArea,      "EFFECTS");
+    drawSection (g, ampEnvArea,  "AMP ENVELOPE");
+    drawSection (g, filtEnvArea, "FILTER ENVELOPE");
+    drawSection (g, masterArea,  "MASTER");
+}
+
+void PPGWave3Editor::drawSection (juce::Graphics& g, juce::Rectangle<int> area,
+                                  const juce::String& title) const
+{
+    if (area.isEmpty()) return;
+
+    const auto r = area.toFloat();
+    juce::ColourGradient grad (juce::Colour (0xff1c1c1c), r.getX(), r.getY(),
+                               juce::Colour (0xff151515), r.getX(), r.getBottom(), false);
+    g.setGradientFill (grad);
+    g.fillRoundedRectangle (r, 4.0f);
+
+    g.setColour (juce::Colour (0xff2f2f2f));
+    g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
+
+    g.setColour (PPGLookAndFeel::accent());
+    g.setFont (juce::Font (juce::FontOptions (9.5f * currentScale, juce::Font::bold)));
+
+    const int titleW = juce::jmin (area.getWidth() - 16, 240);
+    const int titleY = area.getY() + 3;
+    g.drawText (title.toUpperCase(), area.getX() + 8, titleY, titleW, 12,
+                juce::Justification::centredLeft);
+
+    g.setColour (PPGLookAndFeel::accent().withAlpha (0.35f));
+    g.fillRect (area.getX() + 8, titleY + 13,
+                juce::jmin (titleW, 200), 1);
+}
+
+void PPGWave3Editor::drawLogo (juce::Graphics& g, juce::Rectangle<int> area) const
+{
+    const float h = (float) area.getHeight();
+
+    const float ppgSize = juce::jmax (18.0f, h * 0.75f * currentScale);
+    g.setFont (juce::Font (juce::FontOptions (ppgSize, juce::Font::bold)));
+    g.setColour (PPGLookAndFeel::accent());
+
+    const juce::String ppgText ("PPG");
+    juce::GlyphArrangement glyphs1;
+    glyphs1.addLineOfText (g.getCurrentFont(), ppgText, 0.0f, 0.0f);
+    const int ppgW = (int) glyphs1.getBoundingBox (0, glyphs1.getNumGlyphs(), true).getWidth() + 4;
+
+    g.drawText (ppgText, area.removeFromLeft (ppgW),
+                juce::Justification::centredLeft, false);
+
+    area.removeFromLeft (8);
+
+    const float waveSize = juce::jmax (10.0f, h * 0.42f * currentScale);
+    g.setFont (juce::Font (juce::FontOptions (waveSize, juce::Font::plain)));
+    g.setColour (PPGLookAndFeel::textPrimary());
+
+    const juce::String waveText ("WAVE 3.3");
+    juce::GlyphArrangement glyphs2;
+    glyphs2.addLineOfText (g.getCurrentFont(), waveText, 0.0f, 0.0f);
+    const int waveW = (int) glyphs2.getBoundingBox (0, glyphs2.getNumGlyphs(), true).getWidth() + 4;
+
+    auto waveArea = area.removeFromLeft (waveW);
+    g.drawText (waveText, waveArea, juce::Justification::centredLeft, false);
+
+    area.removeFromLeft (8);
+    g.setFont (juce::Font (juce::FontOptions (juce::jmax (8.0f, h * 0.28f * currentScale),
+                                              juce::Font::italic)));
+    g.setColour (PPGLookAndFeel::textDim());
+    g.drawText ("Wave Table Synthesizer", area,
+                juce::Justification::centredLeft, false);
+}
+
+// ==================== resized ====================
+
+void PPGWave3Editor::resized()
+{
+    currentScale = computeScale();
+    applyScaleToAll (currentScale);
+
+    auto r = getLocalBounds();
+
+    // Header con logo + preset bar
+    auto header = r.removeFromTop (72);
+    auto presetRow = header.removeFromBottom (36).reduced (10, 4);
+
+    const int navW   = 32;
+    const int smallW = 70;
+    const int medW   = 90;
+
+    prevBtn.setBounds (presetRow.removeFromLeft (navW));
+    nextBtn.setBounds (presetRow.removeFromLeft (navW));
+    presetRow.removeFromLeft (10);
+
+    browseBtn.setBounds (presetRow.removeFromRight (medW));
+    presetRow.removeFromRight (4);
+    saveBtn  .setBounds (presetRow.removeFromRight (smallW));
+    presetRow.removeFromRight (4);
+    loadBtn  .setBounds (presetRow.removeFromRight (smallW));
+    presetRow.removeFromRight (10);
+
+    presetDisplay.setBounds (presetRow);
+
+    r.reduce (6, 6);
+
+    const int h      = r.getHeight();
+    const int gap    = 6;
+    const int availH = h - 7 * gap;
+
+    const float availHf = (float) availH;
+    const int oscH  = (int) (availHf * 0.095f);
+    const int filtH = (int) (availHf * 0.095f);
+    const int lfoH  = (int) (availHf * 0.105f);
+    const int modH  = (int) (availHf * 0.155f);
+    const int fxH   = (int) (availHf * 0.265f);
+    const int envH  = availH - 2 * oscH - filtH - lfoH - modH - fxH;
+
+    osc1Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
+    osc2Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
+    filterArea = r.removeFromTop (filtH);       r.removeFromTop (gap);
+    lfoArea = r.removeFromTop (lfoH);           r.removeFromTop (gap);
+    modArea = r.removeFromTop (modH);           r.removeFromTop (gap);
+    fxArea  = r.removeFromTop (fxH);            r.removeFromTop (gap);
+
+    auto bottomRow = r.removeFromTop (envH);
+    {
+        const int totalW  = bottomRow.getWidth();
+        const int masterW = (int) ((float) totalW * 0.14f);
+        const int envW    = (totalW - masterW - 2 * gap) / 2;
+        ampEnvArea  = bottomRow.removeFromLeft (envW);
+        bottomRow.removeFromLeft (gap);
+        filtEnvArea = bottomRow.removeFromLeft (envW);
+        bottomRow.removeFromLeft (gap);
+        masterArea  = bottomRow;
+    }
+
+    auto infoWidthFor = [] (int sectionW)
+    {
+        return juce::jlimit (90, 260, (int) ((float) sectionW * 0.22f));
+    };
+
+    auto titleRowFor = [&] (juce::Rectangle<int> area, InfoDisplay& info,
+                            juce::Rectangle<int>& innerOut)
+    {
+        innerOut = area.reduced (8);
+        auto titleRow = innerOut.removeFromTop (
+            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
+        info.setBounds (titleRow.removeFromRight (
+            infoWidthFor (area.getWidth())).reduced (0, 1));
+        innerOut.removeFromTop (1);
+    };
+
+    // -------- Osciladores --------
+    auto layoutOscSection = [&] (juce::Rectangle<int> area,
+                                 InfoDisplay& info, ButtonSelector& waveSel,
+                                 ui::WavetablePreview& preview,
+                                 RotaryKnob& kPos, RotaryKnob& kOct, RotaryKnob& kSemi,
+                                 RotaryKnob& kFine, RotaryKnob& kLevel)
+    {
+        juce::Rectangle<int> inner;
+        titleRowFor (area, info, inner);
+
+        const int selW = (int) ((float) inner.getWidth() * 0.24f);
+        waveSel.setBounds (inner.removeFromLeft (selW).reduced (2, 3));
+        inner.removeFromLeft (4);
+        const int previewW = (int) ((float) inner.getWidth() * 0.20f);
+        preview.setBounds (inner.removeFromLeft (previewW).reduced (2, 3));
+        inner.removeFromLeft (4);
+
+        const int kw = inner.getWidth() / 5;
+        kPos  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        kOct  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        kSemi .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        kFine .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        kLevel.setBounds (inner.reduced (1, 0));
+    };
+
+    layoutOscSection (osc1Area, osc1Info, *osc1Wave, osc1Preview,
+                      osc1Pos, osc1Oct, osc1Semi, osc1Fine, osc1Level);
+    layoutOscSection (osc2Area, osc2Info, *osc2Wave, osc2Preview,
+                      osc2Pos, osc2Oct, osc2Semi, osc2Fine, osc2Level);
+
+    // -------- Filtro --------
+    {
+        juce::Rectangle<int> inner;
+        titleRowFor (filterArea, filterInfo, inner);
+        const int selW = (int) ((float) inner.getWidth() * 0.22f);
+        filterType->setBounds (inner.removeFromLeft (selW).reduced (2, 3));
+        inner.removeFromLeft (4);
+        const int kw = inner.getWidth() / 4;
+        filterCutoff  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        filterReso    .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        filterEnvAmt  .setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        filterKeyTrack.setBounds (inner.reduced (1, 0));
+    }
+
+    // -------- LFO --------
+    {
+        juce::Rectangle<int> inner;
+        titleRowFor (lfoArea, lfoInfo, inner);
+        const int halfW = (inner.getWidth() - gap) / 2;
+
+        auto layoutLFO = [&] (juce::Rectangle<int> area,
+                              ComboBoxSelector& w, ComboBoxSelector& sync,
+                              ui::LFODisplay& display,
+                              RotaryKnob& rate, RotaryKnob& depth, RotaryKnob& phase)
+        {
+            const int comboW = (int) ((float) area.getWidth() * 0.16f);
+            w.setBounds (area.removeFromLeft (comboW).reduced (2, 0));
+            area.removeFromLeft (2);
+            sync.setBounds (area.removeFromLeft (comboW).reduced (2, 0));
+            area.removeFromLeft (4);
+            const int dispW = (int) ((float) area.getWidth() * 0.30f);
+            display.setBounds (area.removeFromLeft (dispW).reduced (2, 3));
+            area.removeFromLeft (4);
+            const int kw = area.getWidth() / 3;
+            rate .setBounds (area.removeFromLeft (kw).reduced (1, 0));
+            depth.setBounds (area.removeFromLeft (kw).reduced (1, 0));
+            phase.setBounds (area.reduced (1, 0));
+        };
+
+        auto lfo1Zone = inner.removeFromLeft (halfW);
+        inner.removeFromLeft (gap);
+        auto lfo2Zone = inner;
+
+        layoutLFO (lfo1Zone, *lfo1Wave, *lfo1Sync, lfo1Display,
+                   lfo1Rate, lfo1Depth, lfo1Phase);
+        layoutLFO (lfo2Zone, *lfo2Wave, *lfo2Sync, lfo2Display,
+                   lfo2Rate, lfo2Depth, lfo2Phase);
+    }
+
+    // -------- Mod Matrix --------
+    {
+        juce::Rectangle<int> inner;
+        titleRowFor (modArea, modInfo, inner);
+        const int rowH = inner.getHeight() / 4;
+
+        auto layoutRow = [&] (juce::Rectangle<int> row,
+                              ComboBoxSelector& src, ComboBoxSelector& dst, HSlider& amt)
+        {
+            const int srcW = (int) ((float) row.getWidth() * 0.35f);
+            const int dstW = (int) ((float) row.getWidth() * 0.35f);
+            src.setBounds (row.removeFromLeft (srcW).reduced (2, 1));
+            dst.setBounds (row.removeFromLeft (dstW).reduced (2, 1));
+            amt.setBounds (row.reduced (2, 1));
+        };
+
+        layoutRow (inner.removeFromTop (rowH), *mod1Src, *mod1Dst, mod1Amt);
+        layoutRow (inner.removeFromTop (rowH), *mod2Src, *mod2Dst, mod2Amt);
+        layoutRow (inner.removeFromTop (rowH), *mod3Src, *mod3Dst, mod3Amt);
+        layoutRow (inner,                        *mod4Src, *mod4Dst, mod4Amt);
+    }
+
+    // -------- Effects con tabs --------
+    {
+        juce::Rectangle<int> inner;
+        titleRowFor (fxArea, fxInfo, inner);
+
+        // Fila de tabs
+        auto tabRow = inner.removeFromTop (24);
+        const int tabW = tabRow.getWidth() / 4;
+        driveTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        chorusTabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        delayTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        reverbTabBtn.setBounds (tabRow.reduced (1, 0));
+
+        inner.removeFromTop (6);
+
+        const auto controlsArea = inner.reduced (30, 4);
+
+        auto layoutFullRow = [] (juce::Rectangle<int> area,
+                                 ToggleButton& on,
+                                 RotaryKnob& k1, RotaryKnob& k2, RotaryKnob& k3)
+        {
+            auto toggleArea = area.removeFromLeft (110);
+            on.setBounds (toggleArea.withSizeKeepingCentre (
+                toggleArea.getWidth() - 12, 40));
+
+            area.removeFromLeft (24);
+
+            const int kw = area.getWidth() / 3;
+            k1.setBounds (area.removeFromLeft (kw).reduced (6, 0));
+            k2.setBounds (area.removeFromLeft (kw).reduced (6, 0));
+            k3.setBounds (area.reduced (6, 0));
+        };
+
+        {
+            auto area = controlsArea;
+            layoutFullRow (area, *driveOn, driveAmount, driveTone, driveMix);
+        }
+        {
+            auto area = controlsArea;
+            layoutFullRow (area, *chorusOn, chorusRate, chorusDepth, chorusMix);
+        }
+        {
+            auto area = controlsArea;
+
+            auto toggleArea = area.removeFromLeft (110);
+            delayOn->setBounds (toggleArea.withSizeKeepingCentre (
+                toggleArea.getWidth() - 12, 40));
+
+            area.removeFromLeft (16);
+
+            auto syncArea = area.removeFromLeft (150);
+            delaySync->setBounds (syncArea.withSizeKeepingCentre (
+                syncArea.getWidth() - 12, 52));
+
+            area.removeFromLeft (16);
+
+            const int kw = area.getWidth() / 3;
+            delayTime    .setBounds (area.removeFromLeft (kw).reduced (6, 0));
+            delayFeedback.setBounds (area.removeFromLeft (kw).reduced (6, 0));
+            delayMix     .setBounds (area.reduced (6, 0));
+        }
+        {
+            auto area = controlsArea;
+            layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix);
+        }
+    }
+
+    // -------- Amp Env --------
+    {
+        juce::Rectangle<int> inner;
+        titleRowFor (ampEnvArea, ampEnvInfo, inner);
+
+        const int dispH = (int) ((float) inner.getHeight() * 0.40f);
+        ampEnvDisplay.setBounds (inner.removeFromTop (dispH).reduced (2, 2));
+        inner.removeFromTop (2);
+
+        const int kw = inner.getWidth() / 4;
+        ampA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        ampD.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        ampS.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        ampR.setBounds (inner.reduced (1, 0));
+    }
+
+    // -------- Filter Env --------
+    {
+        juce::Rectangle<int> inner;
+        titleRowFor (filtEnvArea, filtEnvInfo, inner);
+
+        const int dispH = (int) ((float) inner.getHeight() * 0.40f);
+        filtEnvDisplay.setBounds (inner.removeFromTop (dispH).reduced (2, 2));
+        inner.removeFromTop (2);
+
+        const int kw = inner.getWidth() / 4;
+        filtA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        filtD.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        filtS.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
+        filtR.setBounds (inner.reduced (1, 0));
+    }
+
+    // -------- Master --------
+    {
+        auto inner = masterArea.reduced (8);
+        auto titleRow = inner.removeFromTop (
+            juce::jmax (14, juce::roundToInt (15.0f * currentScale)));
+        masterInfo.setBounds (titleRow.reduced (0, 1));
+        inner.removeFromTop (1);
+
+        const int meterW = juce::jmax (8, juce::roundToInt (12.0f * currentScale));
+        masterMeter.setBounds (inner.removeFromRight (meterW).reduced (2, 4));
+        inner.removeFromRight (4);
+        master.setBounds (inner.reduced (2, 0));
+    }
+
+    repaint();
+}
