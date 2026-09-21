@@ -50,6 +50,8 @@ namespace synth
             adsr.setParameters (adsrParams);
             filtAdsr.setSampleRate (newRate);
             filtAdsr.setParameters (filtAdsrParams);
+            env3.setSampleRate (newRate);
+            env3.setParameters (env3Params);
         }
     }
 
@@ -67,6 +69,7 @@ namespace synth
         lfo2.reset (0.0f);
         adsr.noteOn();
         filtAdsr.noteOn();
+        env3.noteOn();
 
         juce::Random r;
         randomValue = r.nextFloat() * 2.0f - 1.0f;
@@ -80,11 +83,13 @@ namespace synth
         {
             adsr.noteOff();
             filtAdsr.noteOff();
+            env3.noteOff();
         }
         else
         {
             adsr.reset();
             filtAdsr.reset();
+            env3.reset();
             clearCurrentNote();
             isActive = false;
         }
@@ -130,6 +135,13 @@ namespace synth
         filtAdsrParams.sustain = getF (ParamIDs::filtSustain, 0.500f);
         filtAdsrParams.release = getF (ParamIDs::filtRelease, 0.300f);
         filtAdsr.setParameters (filtAdsrParams);
+
+        // FASE 6.5: ENV3 libre
+        env3Params.attack  = getF (ParamIDs::env3Attack,  0.005f);
+        env3Params.decay   = getF (ParamIDs::env3Decay,   0.200f);
+        env3Params.sustain = getF (ParamIDs::env3Sustain, 0.500f);
+        env3Params.release = getF (ParamIDs::env3Release, 0.300f);
+        env3.setParameters (env3Params);
 
         // ---------- Wavetables ----------
         const int w1 = getI (ParamIDs::osc1Wave, 0);
@@ -217,8 +229,9 @@ namespace synth
 
         for (int i = 0; i < numSamples; ++i)
         {
-            const float env     = adsr.getNextSample();
-            const float filtEnv = filtAdsr.getNextSample();
+            const float env      = adsr.getNextSample();
+            const float filtEnv  = filtAdsr.getNextSample();
+            const float env3Val  = env3.getNextSample();   // FASE 6.5
 
             const float lfo1Val = lfo1.getNextSample (lfo1WaveEnum, lfo1R, lfo1P) * lfo1D;
             const float lfo2Val = lfo2.getNextSample (lfo2WaveEnum, lfo2R, lfo2P) * lfo2D;
@@ -232,6 +245,8 @@ namespace synth
             float modWT2    = 0.0f;
             float modCutoff = 0.0f;
             float modAmp    = 1.0f;
+            float modReso   = 0.0f;   // FASE 6.5
+            float modFine2  = 0.0f;   // FASE 6.5
 
             for (const auto& m : mods)
             {
@@ -240,15 +255,16 @@ namespace synth
                 float srcVal = 0.0f;
                 switch (m.source)
                 {
-                    case 1: srcVal = lfo1Val;         break;
-                    case 2: srcVal = lfo2Val;         break;
-                    case 3: srcVal = env;             break;
-                    case 4: srcVal = filtEnv;         break;
-                    case 5: srcVal = velocityGain;    break;
-                    case 6: srcVal = modWheelValue;   break;
-                    case 7: srcVal = aftertouchValue; break;
-                    case 8: srcVal = noteNumberVal;   break;
-                    case 9: srcVal = randomValue;     break;
+                    case 1:  srcVal = lfo1Val;         break;
+                    case 2:  srcVal = lfo2Val;         break;
+                    case 3:  srcVal = env;             break;
+                    case 4:  srcVal = filtEnv;         break;
+                    case 5:  srcVal = velocityGain;    break;
+                    case 6:  srcVal = modWheelValue;   break;
+                    case 7:  srcVal = aftertouchValue; break;
+                    case 8:  srcVal = noteNumberVal;   break;
+                    case 9:  srcVal = randomValue;     break;
+                    case 10: srcVal = env3Val;         break;   // FASE 6.5: Envelope 3
                     default: break;
                 }
 
@@ -262,12 +278,15 @@ namespace synth
                     case 4: modWT2    += v; break;
                     case 5: modCutoff += v; break;
                     case 6: modAmp    += v; break;
+                    case 7: modReso   += v; break;   // FASE 6.5
+                    case 8: modFine2  += v; break;   // FASE 6.5
                     default: break;
                 }
             }
 
             const float f1   = baseF1 * std::pow (2.0f, modPitch1 * 2.0f);
-            const float f2   = baseF2 * std::pow (2.0f, modPitch2 * 2.0f);
+            // FASE 6.5: OSC2 Fine añade ±50 cents cuando amount=1.0 (÷24 en potencias de 2)
+            const float f2   = baseF2 * std::pow (2.0f, modPitch2 * 2.0f + modFine2 / 24.0f);
             const float pos1 = juce::jlimit (0.0f, 1.0f, basePos1 + modWT1);
             const float pos2 = juce::jlimit (0.0f, 1.0f, basePos2 + modWT2);
 
@@ -276,7 +295,8 @@ namespace synth
                 const float envMod = std::pow (2.0f, fEnvAmt * filtEnv * 5.0f);
                 const float modMod = std::pow (2.0f, modCutoff * 5.0f);
                 filter.setCutoff (keyTrackedCutoff * envMod * modMod);
-                filter.setResonance (baseReso);
+                // FASE 6.5: reso modulable (y de paso se arregla que antes nunca se aplicaba)
+                filter.setResonance (juce::jlimit (0.0f, 1.0f, baseReso + modReso));
             }
 
             const float s1 = osc1.getNextSample (wave1, f1, pos1);
