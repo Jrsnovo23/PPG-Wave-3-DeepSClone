@@ -48,10 +48,24 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         }
     }
 
-    // 2. Sintetizador
+    // 2. FASE 6.8: Inyectar notas del teclado virtual
+    keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
+
+    // 3. FASE 6.8: Inyectar Pitch Bend y Mod Wheel siempre
+    {
+        const int pbValue = juce::jlimit (0, 16383,
+            (int) std::lround (8192.0f + pitchBendAtomic.load() * 8192.0f));
+        midi.addEvent (juce::MidiMessage::pitchWheel (1, pbValue), 0);
+
+        const int mwValue = juce::jlimit (0, 127,
+            (int) std::lround (modWheelAtomic.load() * 127.0f));
+        midi.addEvent (juce::MidiMessage::controllerEvent (1, 1, mwValue), 0);
+    }
+
+    // 4. Sintetizador
     synth.renderNextBlock (buffer, midi, 0, buffer.getNumSamples());
 
-    // 3. Efectos globales
+    // 5. Efectos globales
     auto getF = [&] (const char* id, float def) -> float
     {
         if (auto* p = apvts.getRawParameterValue (id)) return p->load();
