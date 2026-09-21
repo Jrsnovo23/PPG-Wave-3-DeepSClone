@@ -41,6 +41,11 @@ public:
     // Nivel de pico de la última pasada (para el VU meter).
     std::atomic<float> peakLevel { 0.0f };
 
+    // ===== FASE 6.8: Teclado virtual + Pitch/Mod wheels =====
+    juce::MidiKeyboardState keyboardState;
+    std::atomic<float> pitchBendAtomic { 0.0f };   // -1 .. +1
+    std::atomic<float> modWheelAtomic  { 0.0f };   //  0 .. +1
+
 private:
     juce::Synthesiser synth;
     dsp::Effects effects;
