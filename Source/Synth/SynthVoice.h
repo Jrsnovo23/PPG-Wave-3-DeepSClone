@@ -55,10 +55,13 @@ namespace synth
         float randomValue     = 0.0f;
         bool  isActive        = false;
 
-        juce::ADSR adsr;
-        juce::ADSR filtAdsr;
+        // FASE 6.5: 3ª envolvente libre (enrutable desde la matriz).
+        juce::ADSR adsr;        // ENV1 (amp, hard-wired)
+        juce::ADSR filtAdsr;    // ENV2 (filter env amt, hard-wired)
+        juce::ADSR env3;        // ENV3 (libre)
 
         juce::ADSR::Parameters adsrParams     { 0.005f, 0.100f, 0.700f, 0.300f };
         juce::ADSR::Parameters filtAdsrParams { 0.005f, 0.200f, 0.500f, 0.300f };
+        juce::ADSR::Parameters env3Params     { 0.005f, 0.200f, 0.500f, 0.300f };
     };
 }
