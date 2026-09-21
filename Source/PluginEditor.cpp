@@ -333,18 +333,26 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       filterReso    (p.apvts, ParamIDs::filterReso,     "RESO",    &filterInfo),
       filterEnvAmt  (p.apvts, ParamIDs::filterEnvAmt,   "ENV AMT", &filterInfo),
       filterKeyTrack(p.apvts, ParamIDs::filterKeyTrack, "KEY TRK", &filterInfo),
-      ampEnvDisplay  (p.apvts, ParamIDs::ampAttack, ParamIDs::ampDecay,
-                      ParamIDs::ampSustain, ParamIDs::ampRelease),
-      filtEnvDisplay (p.apvts, ParamIDs::filtAttack, ParamIDs::filtDecay,
-                      ParamIDs::filtSustain, ParamIDs::filtRelease),
-      ampA (p.apvts, ParamIDs::ampAttack,  "A", &ampEnvInfo),
-      ampD (p.apvts, ParamIDs::ampDecay,   "D", &ampEnvInfo),
-      ampS (p.apvts, ParamIDs::ampSustain, "S", &ampEnvInfo),
-      ampR (p.apvts, ParamIDs::ampRelease, "R", &ampEnvInfo),
-      filtA (p.apvts, ParamIDs::filtAttack,  "A", &filtEnvInfo),
-      filtD (p.apvts, ParamIDs::filtDecay,   "D", &filtEnvInfo),
-      filtS (p.apvts, ParamIDs::filtSustain, "S", &filtEnvInfo),
-      filtR (p.apvts, ParamIDs::filtRelease, "R", &filtEnvInfo),
+      // ===== FASE 6.5: ENV1 / ENV2 / ENV3 =====
+      env1Display (p.apvts, ParamIDs::ampAttack, ParamIDs::ampDecay,
+                   ParamIDs::ampSustain, ParamIDs::ampRelease),
+      env2Display (p.apvts, ParamIDs::filtAttack, ParamIDs::filtDecay,
+                   ParamIDs::filtSustain, ParamIDs::filtRelease),
+      env3Display (p.apvts, ParamIDs::env3Attack, ParamIDs::env3Decay,
+                   ParamIDs::env3Sustain, ParamIDs::env3Release),
+      env1A (p.apvts, ParamIDs::ampAttack,   "A", &envInfo),
+      env1D (p.apvts, ParamIDs::ampDecay,    "D", &envInfo),
+      env1S (p.apvts, ParamIDs::ampSustain,  "S", &envInfo),
+      env1R (p.apvts, ParamIDs::ampRelease,  "R", &envInfo),
+      env2A (p.apvts, ParamIDs::filtAttack,  "A", &envInfo),
+      env2D (p.apvts, ParamIDs::filtDecay,   "D", &envInfo),
+      env2S (p.apvts, ParamIDs::filtSustain, "S", &envInfo),
+      env2R (p.apvts, ParamIDs::filtRelease, "R", &envInfo),
+      env3A (p.apvts, ParamIDs::env3Attack,  "A", &envInfo),
+      env3D (p.apvts, ParamIDs::env3Decay,   "D", &envInfo),
+      env3S (p.apvts, ParamIDs::env3Sustain, "S", &envInfo),
+      env3R (p.apvts, ParamIDs::env3Release, "R", &envInfo),
+      // ===== fin FASE 6.5 =====
       master (p.apvts, ParamIDs::masterGain, "MASTER", &masterInfo),
       masterMeter (p.peakLevel),
       lfo1Wave (std::make_unique<ComboBoxSelector> (p.apvts, ParamIDs::lfo1Wave, "WAVE", &lfoInfo)),
@@ -428,13 +436,33 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     delayTabBtn .onClick = [this]() { activeFxTab = 2; updateFxVisibility(); repaint(); };
     reverbTabBtn.onClick = [this]() { activeFxTab = 3; updateFxVisibility(); repaint(); };
 
+    // === FASE 6.5: Env tab buttons ===
+    for (auto* b : { &env1TabBtn, &env2TabBtn, &env3TabBtn })
+    {
+        b->setClickingTogglesState (false);
+        b->setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff1c1c1c));
+        b->setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffaa00));
+        b->setColour (juce::TextButton::textColourOffId,  juce::Colour (0xffaaaaaa));
+        b->setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
+        addAndMakeVisible (b);
+    }
+
+    env1TabBtn.setButtonText ("ENV1 - AMP");
+    env2TabBtn.setButtonText ("ENV2 - FILTER");
+    env3TabBtn.setButtonText ("ENV3 - FREE");
+
+    env1TabBtn.onClick = [this]() { activeEnvTab = 0; updateEnvVisibility(); repaint(); };
+    env2TabBtn.onClick = [this]() { activeEnvTab = 1; updateEnvVisibility(); repaint(); };
+    env3TabBtn.onClick = [this]() { activeEnvTab = 2; updateEnvVisibility(); repaint(); };
+
     // Visualizadores
     addAndMakeVisible (osc1Preview);
     addAndMakeVisible (osc2Preview);
     addAndMakeVisible (lfo1Display);
     addAndMakeVisible (lfo2Display);
-    addAndMakeVisible (ampEnvDisplay);
-    addAndMakeVisible (filtEnvDisplay);
+    addAndMakeVisible (env1Display);
+    addAndMakeVisible (env2Display);
+    addAndMakeVisible (env3Display);
     addAndMakeVisible (masterMeter);
 
     addAndMakeVisible (*osc1Wave);
@@ -452,7 +480,7 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     addAndMakeVisible (*reverbOn);
 
     for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
-                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
+                     &envInfo, &masterInfo,
                      &lfoInfo, &modInfo, &fxInfo })
         addAndMakeVisible (d);
 
@@ -460,8 +488,10 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
         &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
         &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
         &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
-        &ampA, &ampD, &ampS, &ampR,
-        &filtA, &filtD, &filtS, &filtR,
+        // FASE 6.5: 12 knobs de las 3 envolventes
+        &env1A, &env1D, &env1S, &env1R,
+        &env2A, &env2D, &env2S, &env2R,
+        &env3A, &env3D, &env3S, &env3R,
         &master,
         &lfo1Rate, &lfo1Depth, &lfo1Phase,
         &lfo2Rate, &lfo2Depth, &lfo2Phase,
@@ -477,10 +507,12 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     setLookAndFeel (&ppgLnf);
 
     setResizable (false, false);
-    setSize (1280, 860);
+    // FASE 6.5: ventana un poco más alta para acomodar los tabs de envelopes.
+    setSize (1280, 960);
 
     // Activar primera pestaña
     updateFxVisibility();
+    updateEnvVisibility();
 }
 
 PPGWave3Editor::~PPGWave3Editor()
@@ -522,6 +554,31 @@ void PPGWave3Editor::updateFxVisibility()
     chorusTabBtn.setToggleState (c,  juce::dontSendNotification);
     delayTabBtn .setToggleState (dl, juce::dontSendNotification);
     reverbTabBtn.setToggleState (r,  juce::dontSendNotification);
+}
+
+// ==================== FASE 6.5: Env Tab visibility ====================
+
+void PPGWave3Editor::updateEnvVisibility()
+{
+    const bool e1 = (activeEnvTab == 0);
+    const bool e2 = (activeEnvTab == 1);
+    const bool e3 = (activeEnvTab == 2);
+
+    env1Display.setVisible (e1);
+    env1A.setVisible (e1); env1D.setVisible (e1);
+    env1S.setVisible (e1); env1R.setVisible (e1);
+
+    env2Display.setVisible (e2);
+    env2A.setVisible (e2); env2D.setVisible (e2);
+    env2S.setVisible (e2); env2R.setVisible (e2);
+
+    env3Display.setVisible (e3);
+    env3A.setVisible (e3); env3D.setVisible (e3);
+    env3S.setVisible (e3); env3R.setVisible (e3);
+
+    env1TabBtn.setToggleState (e1, juce::dontSendNotification);
+    env2TabBtn.setToggleState (e2, juce::dontSendNotification);
+    env3TabBtn.setToggleState (e3, juce::dontSendNotification);
 }
 
 // ==================== Preset actions ====================
@@ -620,7 +677,7 @@ void PPGWave3Editor::onBrowsePreset()
 
 float PPGWave3Editor::computeScale() const
 {
-    const float refH = 860.0f;
+    const float refH = 960.0f;
     return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
 }
 
@@ -629,8 +686,9 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
     for (auto* k : { &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
                      &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
                      &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
-                     &ampA, &ampD, &ampS, &ampR,
-                     &filtA, &filtD, &filtS, &filtR,
+                     &env1A, &env1D, &env1S, &env1R,
+                     &env2A, &env2D, &env2S, &env2R,
+                     &env3A, &env3D, &env3S, &env3R,
                      &master,
                      &lfo1Rate, &lfo1Depth, &lfo1Phase,
                      &lfo2Rate, &lfo2Depth, &lfo2Phase,
@@ -641,7 +699,7 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
         k->setScale (scaleValue);
 
     for (auto* d : { &osc1Info, &osc2Info, &filterInfo,
-                     &ampEnvInfo, &filtEnvInfo, &masterInfo,
+                     &envInfo, &masterInfo,
                      &lfoInfo, &modInfo, &fxInfo })
         d->setScale (scaleValue);
 
@@ -695,8 +753,8 @@ void PPGWave3Editor::paint (juce::Graphics& g)
     drawSection (g, lfoArea,     "LFO");
     drawSection (g, modArea,     "MODULATION MATRIX");
     drawSection (g, fxArea,      "EFFECTS");
-    drawSection (g, ampEnvArea,  "AMP ENVELOPE");
-    drawSection (g, filtEnvArea, "FILTER ENVELOPE");
+    // FASE 6.5: un solo panel de envelopes con tabs
+    drawSection (g, envArea,     "ENVELOPES");
     drawSection (g, masterArea,  "MASTER");
 }
 
@@ -799,7 +857,7 @@ void PPGWave3Editor::resized()
 
     const int h      = r.getHeight();
     const int gap    = 6;
-    const int availH = h - 7 * gap;
+    const int availH = h - 6 * gap;   // 7 secciones -> 6 gaps (antes eran 7 secciones + bottom row)
 
     const float availHf = (float) availH;
     const int oscH  = (int) (availHf * 0.095f);
@@ -807,7 +865,8 @@ void PPGWave3Editor::resized()
     const int lfoH  = (int) (availHf * 0.105f);
     const int modH  = (int) (availHf * 0.155f);
     const int fxH   = (int) (availHf * 0.265f);
-    const int envH  = availH - 2 * oscH - filtH - lfoH - modH - fxH;
+    // FASE 6.5: la fila inferior ahora es ENV (con tabs) + MASTER
+    const int bottomH = availH - 2 * oscH - filtH - lfoH - modH - fxH;
 
     osc1Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
     osc2Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
@@ -816,16 +875,14 @@ void PPGWave3Editor::resized()
     modArea = r.removeFromTop (modH);           r.removeFromTop (gap);
     fxArea  = r.removeFromTop (fxH);            r.removeFromTop (gap);
 
-    auto bottomRow = r.removeFromTop (envH);
+    auto bottomRow = r.removeFromTop (bottomH);
     {
         const int totalW  = bottomRow.getWidth();
         const int masterW = (int) ((float) totalW * 0.14f);
-        const int envW    = (totalW - masterW - 2 * gap) / 2;
-        ampEnvArea  = bottomRow.removeFromLeft (envW);
+        const int envW    = totalW - masterW - gap;
+        envArea    = bottomRow.removeFromLeft (envW);
         bottomRow.removeFromLeft (gap);
-        filtEnvArea = bottomRow.removeFromLeft (envW);
-        bottomRow.removeFromLeft (gap);
-        masterArea  = bottomRow;
+        masterArea = bottomRow;
     }
 
     auto infoWidthFor = [] (int sectionW)
@@ -1012,36 +1069,46 @@ void PPGWave3Editor::resized()
         }
     }
 
-    // -------- Amp Env --------
+    // -------- FASE 6.5: Envelopes con tabs (ENV1 / ENV2 / ENV3) --------
     {
         juce::Rectangle<int> inner;
-        titleRowFor (ampEnvArea, ampEnvInfo, inner);
+        titleRowFor (envArea, envInfo, inner);
 
-        const int dispH = (int) ((float) inner.getHeight() * 0.40f);
-        ampEnvDisplay.setBounds (inner.removeFromTop (dispH).reduced (2, 2));
-        inner.removeFromTop (2);
+        // Fila de tabs
+        auto tabRow = inner.removeFromTop (24);
+        const int tabW = tabRow.getWidth() / 3;
+        env1TabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        env2TabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        env3TabBtn.setBounds (tabRow.reduced (1, 0));
 
-        const int kw = inner.getWidth() / 4;
-        ampA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        ampD.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        ampS.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        ampR.setBounds (inner.reduced (1, 0));
-    }
+        inner.removeFromTop (6);
 
-    // -------- Filter Env --------
-    {
-        juce::Rectangle<int> inner;
-        titleRowFor (filtEnvArea, filtEnvInfo, inner);
+        // Dibujamos los 3 displays y los 12 knobs en el mismo sitio.
+        // updateEnvVisibility() decide cuáles están visibles.
+        auto drawArea = inner;
 
-        const int dispH = (int) ((float) inner.getHeight() * 0.40f);
-        filtEnvDisplay.setBounds (inner.removeFromTop (dispH).reduced (2, 2));
-        inner.removeFromTop (2);
+        const int dispH = (int) ((float) drawArea.getHeight() * 0.42f);
+        auto dispRow = drawArea.removeFromTop (dispH).reduced (2, 2);
+        env1Display.setBounds (dispRow);
+        env2Display.setBounds (dispRow);
+        env3Display.setBounds (dispRow);
 
-        const int kw = inner.getWidth() / 4;
-        filtA.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filtD.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filtS.setBounds (inner.removeFromLeft (kw).reduced (1, 0));
-        filtR.setBounds (inner.reduced (1, 0));
+        drawArea.removeFromTop (2);
+
+        const int kw = drawArea.getWidth() / 4;
+        auto layoutKnobRow = [&] (RotaryKnob& a, RotaryKnob& d,
+                                  RotaryKnob& s, RotaryKnob& rr)
+        {
+            auto row = drawArea;
+            a .setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            d .setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            s .setBounds (row.removeFromLeft (kw).reduced (1, 0));
+            rr.setBounds (row.reduced (1, 0));
+        };
+
+        layoutKnobRow (env1A, env1D, env1S, env1R);
+        layoutKnobRow (env2A, env2D, env2S, env2R);
+        layoutKnobRow (env3A, env3D, env3S, env3R);
     }
 
     // -------- Master --------
