@@ -395,7 +395,9 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       reverbOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::reverbOn, "REVERB", &fxInfo)),
       reverbSize (p.apvts, ParamIDs::reverbSize, "SIZE", &fxInfo),
       reverbDamp (p.apvts, ParamIDs::reverbDamp, "DAMP", &fxInfo),
-      reverbMix  (p.apvts, ParamIDs::reverbMix,  "MIX",  &fxInfo)
+      reverbMix  (p.apvts, ParamIDs::reverbMix,  "MIX",  &fxInfo),
+      // ===== FASE 6.8: Teclado + Wheels =====
+      keyboardComponent (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
     juce::ignoreUnused (processorRef, apvts);
 
@@ -436,7 +438,7 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     delayTabBtn .onClick = [this]() { activeFxTab = 2; updateFxVisibility(); repaint(); };
     reverbTabBtn.onClick = [this]() { activeFxTab = 3; updateFxVisibility(); repaint(); };
 
-    // === FASE 6.5: Env tab buttons ===
+    // === Env tab buttons ===
     for (auto* b : { &env1TabBtn, &env2TabBtn, &env3TabBtn })
     {
         b->setClickingTogglesState (false);
@@ -454,6 +456,72 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     env1TabBtn.onClick = [this]() { activeEnvTab = 0; updateEnvVisibility(); repaint(); };
     env2TabBtn.onClick = [this]() { activeEnvTab = 1; updateEnvVisibility(); repaint(); };
     env3TabBtn.onClick = [this]() { activeEnvTab = 2; updateEnvVisibility(); repaint(); };
+
+    // ===== FASE 6.8: Teclado virtual =====
+    keyboardComponent.setAvailableRange (36, 96);   // C2 .. C7
+    keyboardComponent.setLowestVisibleKey (36);
+    keyboardComponent.setKeyWidth (20.0f);
+    keyboardComponent.setScrollButtonsVisible (false);
+    keyboardComponent.setColour (juce::MidiKeyboardComponent::whiteNoteColourId,
+                                 juce::Colour (0xffe8e8e8));
+    keyboardComponent.setColour (juce::MidiKeyboardComponent::blackNoteColourId,
+                                 juce::Colour (0xff1a1a1a));
+    keyboardComponent.setColour (juce::MidiKeyboardComponent::keySeparatorLineColourId,
+                                 juce::Colour (0xff2f2f2f));
+    keyboardComponent.setColour (juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId,
+                                 juce::Colour (0xffffaa00).withAlpha (0.35f));
+    keyboardComponent.setColour (juce::MidiKeyboardComponent::keyDownOverlayColourId,
+                                 juce::Colour (0xffffaa00).withAlpha (0.75f));
+    keyboardComponent.setColour (juce::MidiKeyboardComponent::shadowColourId,
+                                 juce::Colour (0x66000000));
+    keyboardComponent.setColour (juce::MidiKeyboardComponent::textLabelColourId,
+                                 juce::Colour (0xff444444));
+    addAndMakeVisible (keyboardComponent);
+
+    // ===== FASE 6.8: Pitch wheel =====
+    pitchWheelSlider.setSliderStyle (juce::Slider::LinearVertical);
+    pitchWheelSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    pitchWheelSlider.setRange (-1.0, 1.0, 0.001);
+    pitchWheelSlider.setValue (0.0, juce::dontSendNotification);
+    pitchWheelSlider.setColour (juce::Slider::trackColourId,      juce::Colour (0xffffaa00));
+    pitchWheelSlider.setColour (juce::Slider::backgroundColourId, juce::Colour (0xff2a2a2a));
+    pitchWheelSlider.setColour (juce::Slider::thumbColourId,      juce::Colour (0xffffcc55));
+    pitchWheelSlider.onValueChange = [this]()
+    {
+        processorRef.pitchBendAtomic.store ((float) pitchWheelSlider.getValue());
+    };
+    pitchWheelSlider.onDragEnd = [this]()
+    {
+        // Spring back to center (como una rueda de pitch real)
+        pitchWheelSlider.setValue (0.0, juce::sendNotificationSync);
+    };
+    addAndMakeVisible (pitchWheelSlider);
+
+    pitchWheelLabel.setText ("PITCH", juce::dontSendNotification);
+    pitchWheelLabel.setJustificationType (juce::Justification::centred);
+    pitchWheelLabel.setColour (juce::Label::textColourId, juce::Colour (0xffaaaaaa));
+    pitchWheelLabel.setFont (juce::FontOptions (9.0f, juce::Font::bold));
+    addAndMakeVisible (pitchWheelLabel);
+
+    // ===== FASE 6.8: Mod wheel =====
+    modWheelSlider.setSliderStyle (juce::Slider::LinearVertical);
+    modWheelSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    modWheelSlider.setRange (0.0, 1.0, 0.001);
+    modWheelSlider.setValue (0.0, juce::dontSendNotification);
+    modWheelSlider.setColour (juce::Slider::trackColourId,      juce::Colour (0xffffaa00));
+    modWheelSlider.setColour (juce::Slider::backgroundColourId, juce::Colour (0xff2a2a2a));
+    modWheelSlider.setColour (juce::Slider::thumbColourId,      juce::Colour (0xffffcc55));
+    modWheelSlider.onValueChange = [this]()
+    {
+        processorRef.modWheelAtomic.store ((float) modWheelSlider.getValue());
+    };
+    addAndMakeVisible (modWheelSlider);
+
+    modWheelLabel.setText ("MOD", juce::dontSendNotification);
+    modWheelLabel.setJustificationType (juce::Justification::centred);
+    modWheelLabel.setColour (juce::Label::textColourId, juce::Colour (0xffaaaaaa));
+    modWheelLabel.setFont (juce::FontOptions (9.0f, juce::Font::bold));
+    addAndMakeVisible (modWheelLabel);
 
     // Visualizadores
     addAndMakeVisible (osc1Preview);
@@ -488,7 +556,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
         &osc1Pos, &osc1Oct, &osc1Semi, &osc1Fine, &osc1Level,
         &osc2Pos, &osc2Oct, &osc2Semi, &osc2Fine, &osc2Level,
         &filterCutoff, &filterReso, &filterEnvAmt, &filterKeyTrack,
-        // FASE 6.5: 12 knobs de las 3 envolventes
         &env1A, &env1D, &env1S, &env1R,
         &env2A, &env2D, &env2S, &env2R,
         &env3A, &env3D, &env3S, &env3R,
@@ -507,8 +574,8 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     setLookAndFeel (&ppgLnf);
 
     setResizable (false, false);
-    // FASE 6.5: ventana un poco más alta para acomodar los tabs de envelopes.
-    setSize (1280, 960);
+    // FASE 6.8: ventana un poco más alta para el teclado virtual.
+    setSize (1280, 1040);
 
     // Activar primera pestaña
     updateFxVisibility();
@@ -556,7 +623,7 @@ void PPGWave3Editor::updateFxVisibility()
     reverbTabBtn.setToggleState (r,  juce::dontSendNotification);
 }
 
-// ==================== FASE 6.5: Env Tab visibility ====================
+// ==================== Env Tab visibility ====================
 
 void PPGWave3Editor::updateEnvVisibility()
 {
@@ -677,7 +744,7 @@ void PPGWave3Editor::onBrowsePreset()
 
 float PPGWave3Editor::computeScale() const
 {
-    const float refH = 960.0f;
+    const float refH = 1040.0f;
     return juce::jlimit (0.72f, 1.5f, (float) getHeight() / refH);
 }
 
@@ -723,6 +790,12 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
     chorusOn->setScale (scaleValue);
     delayOn ->setScale (scaleValue);
     reverbOn->setScale (scaleValue);
+
+    // FASE 6.8: escalar las etiquetas de las ruedas.
+    pitchWheelLabel.setFont (juce::FontOptions (juce::jmax (7.0f, 9.0f * scaleValue),
+                                                juce::Font::bold));
+    modWheelLabel  .setFont (juce::FontOptions (juce::jmax (7.0f, 9.0f * scaleValue),
+                                                juce::Font::bold));
 }
 
 // ==================== paint ====================
@@ -753,9 +826,29 @@ void PPGWave3Editor::paint (juce::Graphics& g)
     drawSection (g, lfoArea,     "LFO");
     drawSection (g, modArea,     "MODULATION MATRIX");
     drawSection (g, fxArea,      "EFFECTS");
-    // FASE 6.5: un solo panel de envelopes con tabs
     drawSection (g, envArea,     "ENVELOPES");
     drawSection (g, masterArea,  "MASTER");
+
+    // FASE 6.8: panel que agrupa teclado + ruedas.
+    if (! keyboardArea.isEmpty())
+    {
+        const auto r = keyboardArea.toFloat();
+        juce::ColourGradient grad (juce::Colour (0xff1c1c1c), r.getX(), r.getY(),
+                                   juce::Colour (0xff151515), r.getX(), r.getBottom(), false);
+        g.setGradientFill (grad);
+        g.fillRoundedRectangle (r, 4.0f);
+
+        g.setColour (juce::Colour (0xff2f2f2f));
+        g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
+
+        g.setColour (PPGLookAndFeel::accent());
+        g.setFont (juce::Font (juce::FontOptions (9.5f * currentScale, juce::Font::bold)));
+        g.drawText ("KEYBOARD", keyboardArea.getX() + 8, keyboardArea.getY() + 3,
+                    200, 12, juce::Justification::centredLeft);
+
+        g.setColour (PPGLookAndFeel::accent().withAlpha (0.35f));
+        g.fillRect (keyboardArea.getX() + 8, keyboardArea.getY() + 16, 200, 1);
+    }
 }
 
 void PPGWave3Editor::drawSection (juce::Graphics& g, juce::Rectangle<int> area,
@@ -853,11 +946,35 @@ void PPGWave3Editor::resized()
 
     presetDisplay.setBounds (presetRow);
 
+    // ===== FASE 6.8: Reservar la tira inferior para teclado + ruedas =====
+    auto keyboardStrip = r.removeFromBottom (92);
+    keyboardArea = keyboardStrip;
+
+    keyboardStrip.reduce (10, 8);
+
+    const int wheelW = juce::jmax (30, juce::roundToInt (44.0f * currentScale));
+    const int labelH = juce::jmax (10, juce::roundToInt (12.0f * currentScale));
+
+    auto pitchArea = keyboardStrip.removeFromLeft (wheelW);
+    pitchWheelLabel.setBounds (pitchArea.removeFromTop (labelH));
+    pitchWheelSlider.setBounds (pitchArea.reduced (3, 0));
+
+    keyboardStrip.removeFromLeft (6);
+
+    auto modArea2 = keyboardStrip.removeFromLeft (wheelW);
+    modWheelLabel.setBounds (modArea2.removeFromTop (labelH));
+    modWheelSlider.setBounds (modArea2.reduced (3, 0));
+
+    keyboardStrip.removeFromLeft (12);
+    keyboardComponent.setBounds (keyboardStrip);
+
+    // ===== El resto igual que antes =====
+
     r.reduce (6, 6);
 
     const int h      = r.getHeight();
     const int gap    = 6;
-    const int availH = h - 6 * gap;   // 7 secciones -> 6 gaps (antes eran 7 secciones + bottom row)
+    const int availH = h - 6 * gap;
 
     const float availHf = (float) availH;
     const int oscH  = (int) (availHf * 0.095f);
@@ -865,7 +982,6 @@ void PPGWave3Editor::resized()
     const int lfoH  = (int) (availHf * 0.105f);
     const int modH  = (int) (availHf * 0.155f);
     const int fxH   = (int) (availHf * 0.265f);
-    // FASE 6.5: la fila inferior ahora es ENV (con tabs) + MASTER
     const int bottomH = availH - 2 * oscH - filtH - lfoH - modH - fxH;
 
     osc1Area = r.removeFromTop (oscH);          r.removeFromTop (gap);
@@ -1007,7 +1123,6 @@ void PPGWave3Editor::resized()
         juce::Rectangle<int> inner;
         titleRowFor (fxArea, fxInfo, inner);
 
-        // Fila de tabs
         auto tabRow = inner.removeFromTop (24);
         const int tabW = tabRow.getWidth() / 4;
         driveTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
@@ -1035,46 +1150,29 @@ void PPGWave3Editor::resized()
             k3.setBounds (area.reduced (6, 0));
         };
 
+        { auto area = controlsArea; layoutFullRow (area, *driveOn, driveAmount, driveTone, driveMix); }
+        { auto area = controlsArea; layoutFullRow (area, *chorusOn, chorusRate, chorusDepth, chorusMix); }
         {
             auto area = controlsArea;
-            layoutFullRow (area, *driveOn, driveAmount, driveTone, driveMix);
-        }
-        {
-            auto area = controlsArea;
-            layoutFullRow (area, *chorusOn, chorusRate, chorusDepth, chorusMix);
-        }
-        {
-            auto area = controlsArea;
-
             auto toggleArea = area.removeFromLeft (110);
-            delayOn->setBounds (toggleArea.withSizeKeepingCentre (
-                toggleArea.getWidth() - 12, 40));
-
+            delayOn->setBounds (toggleArea.withSizeKeepingCentre (toggleArea.getWidth() - 12, 40));
             area.removeFromLeft (16);
-
             auto syncArea = area.removeFromLeft (150);
-            delaySync->setBounds (syncArea.withSizeKeepingCentre (
-                syncArea.getWidth() - 12, 52));
-
+            delaySync->setBounds (syncArea.withSizeKeepingCentre (syncArea.getWidth() - 12, 52));
             area.removeFromLeft (16);
-
             const int kw = area.getWidth() / 3;
             delayTime    .setBounds (area.removeFromLeft (kw).reduced (6, 0));
             delayFeedback.setBounds (area.removeFromLeft (kw).reduced (6, 0));
             delayMix     .setBounds (area.reduced (6, 0));
         }
-        {
-            auto area = controlsArea;
-            layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix);
-        }
+        { auto area = controlsArea; layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix); }
     }
 
-    // -------- FASE 6.5: Envelopes con tabs (ENV1 / ENV2 / ENV3) --------
+    // -------- Envelopes con tabs --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (envArea, envInfo, inner);
 
-        // Fila de tabs
         auto tabRow = inner.removeFromTop (24);
         const int tabW = tabRow.getWidth() / 3;
         env1TabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
@@ -1083,8 +1181,6 @@ void PPGWave3Editor::resized()
 
         inner.removeFromTop (6);
 
-        // Dibujamos los 3 displays y los 12 knobs en el mismo sitio.
-        // updateEnvVisibility() decide cuáles están visibles.
         auto drawArea = inner;
 
         const int dispH = (int) ((float) drawArea.getHeight() * 0.42f);
