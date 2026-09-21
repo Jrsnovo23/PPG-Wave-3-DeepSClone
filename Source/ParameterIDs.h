@@ -19,7 +19,7 @@ namespace ParamIDs
     inline constexpr auto osc2Fine   = "osc2_fine";
     inline constexpr auto osc2Level  = "osc2_level";
 
-    // --- Amp Envelope ---
+    // --- Amp Envelope (ENV1) ---
     inline constexpr auto ampAttack  = "amp_attack";
     inline constexpr auto ampDecay   = "amp_decay";
     inline constexpr auto ampSustain = "amp_sustain";
@@ -32,11 +32,17 @@ namespace ParamIDs
     inline constexpr auto filterEnvAmt   = "filter_env_amt";
     inline constexpr auto filterKeyTrack = "filter_key_track";
 
-    // --- Filter Envelope ---
+    // --- Filter Envelope (ENV2) ---
     inline constexpr auto filtAttack  = "filt_attack";
     inline constexpr auto filtDecay   = "filt_decay";
     inline constexpr auto filtSustain = "filt_sustain";
     inline constexpr auto filtRelease = "filt_release";
+
+    // --- Envelope 3 (ENV3, libre — enrutable en la matriz) ---
+    inline constexpr auto env3Attack  = "env3_attack";
+    inline constexpr auto env3Decay   = "env3_decay";
+    inline constexpr auto env3Sustain = "env3_sustain";
+    inline constexpr auto env3Release = "env3_release";
 
     // --- Master ---
     inline constexpr auto masterGain = "master_gain";
