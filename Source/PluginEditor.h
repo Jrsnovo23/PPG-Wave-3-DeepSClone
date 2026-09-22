@@ -118,6 +118,39 @@ private:
         float            scale = 1.0f;
     };
 
+    // ===== FASE 6.7: knob dinámico para el EQ =====
+    // Apunta a uno de 4 parámetros (uno por banda) según la banda activa.
+    class EQBandKnob : public juce::Component,
+                       private juce::Timer
+    {
+    public:
+        EQBandKnob (juce::AudioProcessorValueTreeState& apvts,
+                    const juce::StringArray& paramIdsForBands,  // 4 IDs
+                    const juce::String& labelText,
+                    InfoDisplay* display);
+        ~EQBandKnob() override;
+
+        void setActiveBand (int band);   // 0..3
+        void setScale (float s);
+        void resized() override;
+        void paint   (juce::Graphics&) override;
+
+    private:
+        void timerCallback() override;
+        void sliderChanged();
+        void refreshSliderFromParam();
+
+        juce::AudioProcessorValueTreeState& apvtsRef;
+        juce::StringArray ids;           // 4 param IDs
+        juce::Slider  slider;
+        juce::Label   label;
+        InfoDisplay*  infoDisplay = nullptr;
+        juce::String  paramName;
+        int           activeBand = 0;
+        bool          updatingFromParam = false;
+        float         scale = 1.0f;
+    };
+
     class PresetDisplay : public juce::Component
     {
     public:
@@ -144,6 +177,7 @@ private:
 
     void  updateFxVisibility();
     void  updateEnvVisibility();
+    void  setActiveEqBand (int band);
 
     PPGWave3Processor& processorRef;
     juce::AudioProcessorValueTreeState& apvts;
@@ -203,7 +237,7 @@ private:
     std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  HSlider mod3Amt;
     std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  HSlider mod4Amt;
 
-    // ===== FX — pestañas (FASE 6.7: 6 tabs) =====
+    // ===== FX — pestañas (6 tabs) =====
     juce::TextButton driveTabBtn, chorusTabBtn, delayTabBtn, reverbTabBtn;
     juce::TextButton eqTabBtn, phaserTabBtn;
     int activeFxTab = 0;   // 0=Drive, 1=Chorus, 2=Delay, 3=Reverb, 4=EQ, 5=Phaser
@@ -222,12 +256,12 @@ private:
     std::unique_ptr<ToggleButton> reverbOn;
     RotaryKnob reverbSize, reverbDamp, reverbMix;
 
-    // ===== FASE 6.7: FX — EQ (4 bandas × Freq+Gain) =====
+    // ===== FASE 6.7: FX — EQ (nuevo diseño) =====
     std::unique_ptr<ToggleButton> eqOn;
-    RotaryKnob eqLowFreq,  eqLowGain;
-    RotaryKnob eqLmidFreq, eqLmidGain;
-    RotaryKnob eqHmidFreq, eqHmidGain;
-    RotaryKnob eqHighFreq, eqHighGain;
+    std::unique_ptr<ToggleButton> eqHpOn, eqLpOn;
+    juce::TextButton eqLowBtn, eqLmidBtn, eqHmidBtn, eqHighBtn;
+    EQBandKnob eqFreqKnob, eqQKnob, eqGainKnob;
+    int activeEqBand = 0;   // 0=Low, 1=LMid, 2=HMid, 3=High
 
     // ===== FASE 6.7: FX — Phaser =====
     std::unique_ptr<ToggleButton> phaserOn;
