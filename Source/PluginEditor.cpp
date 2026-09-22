@@ -61,6 +61,20 @@ void PPGWave3Editor::PresetDisplay::paint (juce::Graphics& g)
 
     auto inner = getLocalBounds().reduced (6, 2);
 
+    // FASE 7: icono ▼ a la derecha indicando que se puede desplegar
+    const int arrowW = 14;
+    auto arrowArea = inner.removeFromRight (arrowW);
+    {
+        juce::Path arrow;
+        const float cx = (float) arrowArea.getCentreX();
+        const float cy = (float) arrowArea.getCentreY();
+        arrow.startNewSubPath (cx - 4.0f, cy - 2.0f);
+        arrow.lineTo (cx, cy + 2.0f);
+        arrow.lineTo (cx + 4.0f, cy - 2.0f);
+        g.setColour (juce::Colour (0xffffaa00));
+        g.strokePath (arrow, juce::PathStrokeType (1.6f));
+    }
+
     g.setColour (juce::Colour (0xffffcc55));
     g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
     g.drawText (presetName, inner, juce::Justification::centred, false);
@@ -72,6 +86,13 @@ void PPGWave3Editor::PresetDisplay::paint (juce::Graphics& g)
     const auto tag = isFactory ? "FACTORY" : "USER";
     g.drawText (presetCategory.toUpperCase() + "  -  " + tag,
                 catRow, juce::Justification::centred, false);
+}
+
+// FASE 7: click abre el menú de presets.
+void PPGWave3Editor::PresetDisplay::mouseDown (const juce::MouseEvent&)
+{
+    if (onOpenMenu)
+        onOpenMenu();
 }
 
 // ==================== RotaryKnob ====================
@@ -622,6 +643,8 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       presetManager (p.apvts),
       prevBtn ("<"),
       nextBtn (">"),
+      favoriteBtn ("*"),
+      favoritesOnlyBtn ("FAV"),
       loadBtn ("LOAD"),
       saveBtn ("SAVE"),
       browseBtn ("BROWSE"),
@@ -740,20 +763,39 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 {
     juce::ignoreUnused (processorRef, apvts);
 
+    // === Preset bar ===
     prevBtn.setConnectedEdges (juce::Button::ConnectedOnRight);
     nextBtn.setConnectedEdges (juce::Button::ConnectedOnLeft);
+
     prevBtn.onClick = [this]() { onPrevPreset(); };
     nextBtn.onClick = [this]() { onNextPreset(); };
+    favoriteBtn.onClick      = [this]() { onToggleFavorite(); };
+    favoritesOnlyBtn.onClick = [this]() { onToggleFavoritesOnly(); };
     loadBtn.onClick = [this]() { onLoadPreset(); };
     saveBtn.onClick = [this]() { onSavePreset(); };
     browseBtn.onClick = [this]() { onBrowsePreset(); };
 
-    for (auto* b : { &prevBtn, &nextBtn, &loadBtn, &saveBtn, &browseBtn })
+    for (auto* b : { &prevBtn, &nextBtn, &favoriteBtn, &favoritesOnlyBtn,
+                     &loadBtn, &saveBtn, &browseBtn })
         addAndMakeVisible (b);
+
+    favoriteBtn.setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff252525));
+    favoriteBtn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffaa00));
+    favoriteBtn.setColour (juce::TextButton::textColourOffId,  juce::Colour (0xff999999));
+    favoriteBtn.setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
+
+    favoritesOnlyBtn.setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff252525));
+    favoritesOnlyBtn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffaa00));
+    favoritesOnlyBtn.setColour (juce::TextButton::textColourOffId,  juce::Colour (0xff999999));
+    favoritesOnlyBtn.setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
+
+    // FASE 7: click sobre el nombre abre el menú de presets
+    presetDisplay.onOpenMenu = [this]() { showPresetMenu(); };
 
     addAndMakeVisible (presetDisplay);
     updatePresetDisplay();
 
+    // === FX tab buttons (7) ===
     for (auto* b : { &driveTabBtn, &chorusTabBtn, &phaserTabBtn,
                      &delayTabBtn, &reverbTabBtn, &eqTabBtn, &vintageTabBtn })
     {
@@ -822,6 +864,7 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     setActiveEqBand (0);
     addAndMakeVisible (eqCurveDisplay);
 
+    // === Teclado virtual ===
     keyboardComponent.setAvailableRange (36, 96);
     keyboardComponent.setLowestVisibleKey (36);
     keyboardComponent.setKeyWidth (20.0f);
@@ -842,6 +885,7 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
                                  juce::Colour (0xff444444));
     addAndMakeVisible (keyboardComponent);
 
+    // === Pitch wheel ===
     pitchWheelSlider.setSliderStyle (juce::Slider::LinearVertical);
     pitchWheelSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     pitchWheelSlider.setRange (-1.0, 1.0, 0.001);
@@ -865,6 +909,7 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     pitchWheelLabel.setFont (juce::FontOptions (9.0f, juce::Font::bold));
     addAndMakeVisible (pitchWheelLabel);
 
+    // === Mod wheel ===
     modWheelSlider.setSliderStyle (juce::Slider::LinearVertical);
     modWheelSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     modWheelSlider.setRange (0.0, 1.0, 0.001);
@@ -884,6 +929,7 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     modWheelLabel.setFont (juce::FontOptions (9.0f, juce::Font::bold));
     addAndMakeVisible (modWheelLabel);
 
+    // === Visualizadores ===
     addAndMakeVisible (osc1Preview);
     addAndMakeVisible (osc2Preview);
     addAndMakeVisible (lfo1Display);
@@ -972,6 +1018,121 @@ void PPGWave3Editor::setActiveEqBand (int band)
     eqLmidBtn.setToggleState (activeEqBand == 1, juce::dontSendNotification);
     eqHmidBtn.setToggleState (activeEqBand == 2, juce::dontSendNotification);
     eqHighBtn.setToggleState (activeEqBand == 3, juce::dontSendNotification);
+}
+
+// ==================== FASE 7: Menú de presets ====================
+
+void PPGWave3Editor::showPresetMenu()
+{
+    juce::PopupMenu menu;
+
+    const auto& allPresets = presetManager.getAllPresets();
+    const int currentIdx = presetManager.getCurrentIndex();
+
+    // Recorremos todas las categorías en el orden en que aparecen.
+    juce::StringArray categories;
+    for (const auto& p : allPresets)
+        if (! categories.contains (p.category))
+            categories.add (p.category);
+
+    // Ítem "solo favoritos" arriba.
+    menu.addItem (10000, "Mostrar solo favoritos",
+                  true, presetManager.isFavoritesOnly());
+    menu.addSeparator();
+
+    int itemId = 1;
+
+    for (const auto& cat : categories)
+    {
+        juce::PopupMenu sub;
+
+        for (int i = 0; i < allPresets.size(); ++i)
+        {
+            const auto& p = allPresets.getReference (i);
+            if (p.category != cat) continue;
+
+            const bool fav   = presetManager.isFavorite (p.name);
+            const bool isCur = (i == currentIdx);
+
+            // El nombre del ítem: ★ + nombre (con tick si es el actual).
+            const juce::String prefix = fav ? juce::String::fromUTF8 ("\xe2\x98\x85  ")
+                                             : juce::String ("   ");
+            const juce::String label  = prefix + p.name;
+
+            sub.addItem (itemId, label, true, isCur);
+
+            // Guardamos el id numérico -> índice del preset para recuperarlo.
+            // Usamos un enfoque simple: codificamos índice y favorito en un int:
+            // id = 1000 + i*2 + (fav ? 1 : 0).  id 1..999 reservados para categorías.
+            // Pero PopupMenu necesita ids únicos en TODO el menú, así que mejor
+            // usar un solo rango de ids y reconstruir la info al mostrar.
+            // Solución: usamos id = i+1 y guardamos la relación por índice.
+            //
+            // Nota: JUCE permite el mismo id repetido en submenús distintos pero
+            // puede dar problemas.  Para simplificar, reescribimos aquí el id.
+            juce::ignoreUnused (label, fav);
+            ++itemId;
+        }
+
+        // Reconstruimos el submenú con ids correctos.
+        sub.clear();
+        for (int i = 0; i < allPresets.size(); ++i)
+        {
+            const auto& p = allPresets.getReference (i);
+            if (p.category != cat) continue;
+
+            const bool fav   = presetManager.isFavorite (p.name);
+            const bool isCur = (i == currentIdx);
+
+            juce::String prefix = "   ";
+            if (fav) prefix = juce::String::fromUTF8 ("\xe2\x98\x85  ");
+
+            sub.addItem (i + 1, prefix + p.name, true, isCur);
+        }
+
+        menu.addSubMenu (cat, sub);
+    }
+
+    // Callback: procesa la selección.
+    menu.showMenuAsync (juce::PopupMenu::Options().withMinimumWidth (240),
+        [this] (int result)
+        {
+            if (result == 0) return;
+
+            if (result == 10000)
+            {
+                // Toggle solo favoritos
+                onToggleFavoritesOnly();
+                return;
+            }
+
+            const int presetIdx = result - 1;
+            presetManager.loadByIndex (presetIdx);
+            updatePresetDisplay();
+        });
+}
+
+// ==================== FASE 7: Botones ★ y FAV ====================
+
+void PPGWave3Editor::onToggleFavorite()
+{
+    const auto name = presetManager.getCurrentName();
+    if (name.isEmpty() || name == "-") return;
+
+    presetManager.toggleFavorite (name);
+
+    // Actualizar el estado del botón ★ (encendido si el actual es favorito).
+    const bool isFav = presetManager.isFavorite (name);
+    favoriteBtn.setToggleState (isFav, juce::dontSendNotification);
+    favoriteBtn.setButtonText (isFav ? juce::String::fromUTF8 ("\xe2\x98\x85")
+                                     : juce::String ("*"));
+}
+
+void PPGWave3Editor::onToggleFavoritesOnly()
+{
+    const bool newState = ! presetManager.isFavoritesOnly();
+    presetManager.setFavoritesOnly (newState);
+    favoritesOnlyBtn.setToggleState (newState, juce::dontSendNotification);
 }
 
 // ==================== FX Tab visibility ====================
@@ -1085,6 +1246,17 @@ void PPGWave3Editor::updatePresetDisplay()
         presetDisplay.setInfo (presetManager.getCurrentName(),
                                presetManager.getCurrentCategory(), true);
     }
+
+    // FASE 7: actualizar el botón ★ según el preset actual.
+    const auto name = presetManager.getCurrentName();
+    const bool isFav = presetManager.isFavorite (name);
+    favoriteBtn.setToggleState (isFav, juce::dontSendNotification);
+    favoriteBtn.setButtonText (isFav ? juce::String::fromUTF8 ("\xe2\x98\x85")
+                                     : juce::String ("*"));
+
+    // FASE 7: actualizar el botón FAV según el modo.
+    favoritesOnlyBtn.setToggleState (presetManager.isFavoritesOnly(),
+                                     juce::dontSendNotification);
 }
 
 void PPGWave3Editor::onPrevPreset()
@@ -1358,12 +1530,21 @@ void PPGWave3Editor::resized()
     auto header = r.removeFromTop (72);
     auto presetRow = header.removeFromBottom (36).reduced (10, 4);
 
-    const int navW   = 32;
-    const int smallW = 70;
-    const int medW   = 90;
+    // FASE 7: la barra ahora es [<] [>] [*] [FAV] ......... [LOAD] [SAVE] [BROWSE]
+    // El nombre del preset ocupa todo el espacio del medio.
+    const int navW   = 28;
+    const int starW  = 30;
+    const int favW   = 46;
+    const int smallW = 68;
+    const int medW   = 86;
 
     prevBtn.setBounds (presetRow.removeFromLeft (navW));
     nextBtn.setBounds (presetRow.removeFromLeft (navW));
+    presetRow.removeFromLeft (4);
+
+    favoriteBtn.setBounds (presetRow.removeFromLeft (starW));
+    presetRow.removeFromLeft (2);
+    favoritesOnlyBtn.setBounds (presetRow.removeFromLeft (favW));
     presetRow.removeFromLeft (10);
 
     browseBtn.setBounds (presetRow.removeFromRight (medW));
@@ -1375,6 +1556,7 @@ void PPGWave3Editor::resized()
 
     presetDisplay.setBounds (presetRow);
 
+    // ===== Tira inferior: teclado + ruedas =====
     auto keyboardStrip = r.removeFromBottom (92);
     keyboardArea = keyboardStrip;
 
@@ -1396,6 +1578,7 @@ void PPGWave3Editor::resized()
     keyboardStrip.removeFromLeft (12);
     keyboardComponent.setBounds (keyboardStrip);
 
+    // ===== Resto del layout =====
     r.reduce (6, 6);
 
     const int h      = r.getHeight();
@@ -1676,6 +1859,7 @@ void PPGWave3Editor::resized()
         }
     }
 
+    // Envelopes
     {
         juce::Rectangle<int> inner;
         titleRowFor (envArea, envInfo, inner);
@@ -1714,6 +1898,7 @@ void PPGWave3Editor::resized()
         layoutKnobRow (env3A, env3D, env3S, env3R);
     }
 
+    // Master
     {
         auto inner = masterArea.reduced (8);
         auto titleRow = inner.removeFromTop (
