@@ -4,8 +4,7 @@
 namespace dsp
 {
     // Cadena de efectos globales aplicada post-mix.
-    // Orden: EQ (HP -> LowShelf -> LMid -> HMid -> HighShelf -> LP)
-    //        -> Drive -> Chorus -> Phaser -> Delay -> Reverb.
+    // Orden: Drive -> Chorus -> Phaser -> Delay -> Reverb -> EQ -> Vintage (DAC).
     class Effects
     {
     public:
@@ -18,7 +17,6 @@ namespace dsp
         void setReverb (bool on, float roomSize, float damping, float mix);
         void setDrive  (bool on, float drive, float tone, float mix);
 
-        // ===== FASE 6.7 =====
         void setEQ     (bool on,
                         bool hpOn, bool lpOn,
                         float lowFreq,  float lowQ,  float lowGain,
@@ -26,6 +24,11 @@ namespace dsp
                         float hmidFreq, float hmidQ, float hmidGain,
                         float highFreq, float highQ, float highGain);
         void setPhaser (bool on, float rate, float depth, float feedback, float mix);
+
+        // ===== FASE 8 =====
+        void setVintage (bool on, float amount,
+                         float bits, float srFactor,
+                         float noise);
 
     private:
         double sr       = 44100.0;
@@ -59,8 +62,7 @@ namespace dsp
         float reverbMix    = 0.3f;
         juce::Reverb reverb;
 
-        // ---- FASE 6.7: EQ 4 bandas + HP/LP ----
-        // Chain: [0]=HP, [1]=LowShelf, [2]=LmidPeak, [3]=HmidPeak, [4]=HighShelf, [5]=LP
+        // ---- EQ ----
         using EQChain = juce::dsp::ProcessorChain<
             juce::dsp::IIR::Filter<float>,
             juce::dsp::IIR::Filter<float>,
@@ -80,8 +82,22 @@ namespace dsp
 
         EQChain eqL, eqR;
 
-        // ---- FASE 6.7: Phaser ----
+        // ---- Phaser ----
         bool  phaserOn     = false;
         juce::dsp::Phaser<float> phaser;
+
+        // ---- FASE 8: Vintage Character ----
+        bool  vintageOn     = false;
+        float vintageAmount = 0.5f;
+        float vintageBits   = 12.0f;
+        float vintageSr     = 1.0f;
+        float vintageNoise  = 0.15f;
+
+        // Estado del sample & hold
+        float heldL    = 0.0f;
+        float heldR    = 0.0f;
+        float srCounter = 1.0f;
+
+        juce::Random vintageRng;
     };
 }
