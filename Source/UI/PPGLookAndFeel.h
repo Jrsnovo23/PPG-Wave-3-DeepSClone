@@ -43,4 +43,7 @@ public:
 
     juce::Font getComboBoxFont (juce::ComboBox&) override;
     juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override;
+
+    // FASE 6.6: fuente de los menús desplegables (popup de los ComboBox).
+    juce::Font getPopupMenuFont() override;
 };
