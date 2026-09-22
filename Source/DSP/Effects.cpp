@@ -7,17 +7,14 @@ namespace dsp
         sr       = sampleRate;
         maxBlock = maxBlockSize;
 
-        // Drive
         toneL.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 1 });
         toneR.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 1 });
         toneL.reset();
         toneR.reset();
 
-        // Chorus
         chorus.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 2 });
         chorus.reset();
 
-        // Delay
         juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) maxBlockSize, 1 };
         delayL.prepare (spec);
         delayR.prepare (spec);
@@ -26,10 +23,8 @@ namespace dsp
         delayL.reset();
         delayR.reset();
 
-        // Reverb
         reverb.setSampleRate (sampleRate);
 
-        // FASE 6.7: EQ (uno por canal, mono specs)
         {
             juce::dsp::ProcessSpec monoSpec { sampleRate, (juce::uint32) maxBlockSize, 1 };
             eqL.prepare (monoSpec);
@@ -37,45 +32,43 @@ namespace dsp
             eqL.reset();
             eqR.reset();
 
-            // Coeficientes iniciales "planos"
-            auto setFlatShelf = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq, float q)
+            auto setFlatShelf = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq)
             {
                 *f.coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowShelf (
-                    sr_, freq, q, 1.0f);
+                    sr_, freq, 0.707f, 1.0f);
             };
-            auto setFlatHighShelf = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq, float q)
+            auto setFlatHighShelf = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq)
             {
                 *f.coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (
-                    sr_, freq, q, 1.0f);
+                    sr_, freq, 0.707f, 1.0f);
             };
             auto setFlatPeak = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq, float q)
             {
                 *f.coefficients = *juce::dsp::IIR::Coefficients<float>::makePeakFilter (
                     sr_, freq, q, 1.0f);
             };
-            auto setFlatHP = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq, float q)
+            auto setFlatHP = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq)
             {
                 *f.coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (
-                    sr_, freq, q);
+                    sr_, freq, 0.707f);
             };
-            auto setFlatLP = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq, float q)
+            auto setFlatLP = [] (juce::dsp::IIR::Filter<float>& f, double sr_, float freq)
             {
                 *f.coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (
-                    sr_, freq, q);
+                    sr_, freq, 0.707f);
             };
 
             for (auto* chain : { &eqL, &eqR })
             {
-                setFlatHP       (chain->get<0>(), sampleRate, eqLowFreq,  0.707f);
-                setFlatShelf    (chain->get<1>(), sampleRate, eqLowFreq,  eqLowQ);
+                setFlatHP       (chain->get<0>(), sampleRate, eqLowFreq);
+                setFlatShelf    (chain->get<1>(), sampleRate, eqLowFreq);
                 setFlatPeak     (chain->get<2>(), sampleRate, eqLmidFreq, eqLmidQ);
                 setFlatPeak     (chain->get<3>(), sampleRate, eqHmidFreq, eqHmidQ);
-                setFlatHighShelf(chain->get<4>(), sampleRate, eqHighFreq, eqHighQ);
-                setFlatLP       (chain->get<5>(), sampleRate, eqHighFreq, 0.707f);
+                setFlatHighShelf(chain->get<4>(), sampleRate, eqHighFreq);
+                setFlatLP       (chain->get<5>(), sampleRate, eqHighFreq);
             }
         }
 
-        // FASE 6.7: Phaser
         phaser.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 2 });
         phaser.reset();
         phaser.setCentreFrequency (1000.0f);
@@ -150,7 +143,7 @@ namespace dsp
         *toneR.coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sr, cutoff);
     }
 
-    // ==================== FASE 6.7: EQ ====================
+    // ==================== EQ ====================
     void Effects::setEQ (bool on,
                          bool hpOn, bool lpOn,
                          float lowFreq,  float lowQ,  float lowGain,
@@ -180,29 +173,33 @@ namespace dsp
         const float hmidGainLin = juce::Decibels::decibelsToGain (eqHmidGain);
         const float highGainLin = juce::Decibels::decibelsToGain (eqHighGain);
 
-        const float clampedLowQ  = juce::jlimit (0.1f, 10.0f, eqLowQ);
         const float clampedLmidQ = juce::jlimit (0.1f, 10.0f, eqLmidQ);
         const float clampedHmidQ = juce::jlimit (0.1f, 10.0f, eqHmidQ);
-        const float clampedHighQ = juce::jlimit (0.1f, 10.0f, eqHighQ);
 
         for (auto* chain : { &eqL, &eqR })
         {
+            // HP
             *chain->get<0>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (
                 sr, eqLowFreq, 0.707f);
+            // Low shelf: Q fijo (0.707)
             *chain->get<1>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowShelf (
-                sr, eqLowFreq, clampedLowQ, lowGainLin);
+                sr, eqLowFreq, 0.707f, lowGainLin);
+            // LMid peak: Q ajustable
             *chain->get<2>().coefficients = *juce::dsp::IIR::Coefficients<float>::makePeakFilter (
                 sr, eqLmidFreq, clampedLmidQ, lmidGainLin);
+            // HMid peak: Q ajustable
             *chain->get<3>().coefficients = *juce::dsp::IIR::Coefficients<float>::makePeakFilter (
                 sr, eqHmidFreq, clampedHmidQ, hmidGainLin);
+            // High shelf: Q fijo (0.707)
             *chain->get<4>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (
-                sr, eqHighFreq, clampedHighQ, highGainLin);
+                sr, eqHighFreq, 0.707f, highGainLin);
+            // LP
             *chain->get<5>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (
                 sr, eqHighFreq, 0.707f);
         }
     }
 
-    // ==================== FASE 6.7: Phaser ====================
+    // ==================== Phaser ====================
     void Effects::setPhaser (bool on, float rate, float depth, float feedback, float mix)
     {
         phaserOn = on;
@@ -220,67 +217,6 @@ namespace dsp
 
         auto* L = buffer.getWritePointer (0);
         auto* R = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
-
-        // ---------- 0. EQ ----------
-        if (eqOn)
-        {
-            // Procesamos toda la cadena del EQ (HP + 4 bandas + LP).
-            // El HP/LP sólo actúan si están activos: si no, saltamos esos filtros
-            // reseteándolos internamente. Lo más simple y seguro: dejarlos siempre
-            // en la cadena, pero con coeficientes planos cuando están off.
-
-            if (! eqHpOn && ! eqLpOn)
-            {
-                // Sólo las 4 bandas
-                {
-                    float* chansL[] = { L };
-                    juce::dsp::AudioBlock<float> bL (chansL, 1, 0, (size_t) numSamples);
-                    juce::dsp::ProcessContextReplacing<float> ctx (bL);
-                    eqL.get<1>().process (ctx);
-                    eqL.get<2>().process (ctx);
-                    eqL.get<3>().process (ctx);
-                    eqL.get<4>().process (ctx);
-                }
-                if (R)
-                {
-                    float* chansR[] = { R };
-                    juce::dsp::AudioBlock<float> bR (chansR, 1, 0, (size_t) numSamples);
-                    juce::dsp::ProcessContextReplacing<float> ctx (bR);
-                    eqR.get<1>().process (ctx);
-                    eqR.get<2>().process (ctx);
-                    eqR.get<3>().process (ctx);
-                    eqR.get<4>().process (ctx);
-                }
-            }
-            else
-            {
-                // Cadena completa con HP y/o LP activos
-                float* chansL[] = { L };
-                juce::dsp::AudioBlock<float> bL (chansL, 1, 0, (size_t) numSamples);
-                juce::dsp::ProcessContextReplacing<float> ctxL (bL);
-
-                if (eqHpOn) eqL.get<0>().process (ctxL);
-                eqL.get<1>().process (ctxL);
-                eqL.get<2>().process (ctxL);
-                eqL.get<3>().process (ctxL);
-                eqL.get<4>().process (ctxL);
-                if (eqLpOn) eqL.get<5>().process (ctxL);
-
-                if (R)
-                {
-                    float* chansR[] = { R };
-                    juce::dsp::AudioBlock<float> bR (chansR, 1, 0, (size_t) numSamples);
-                    juce::dsp::ProcessContextReplacing<float> ctxR (bR);
-
-                    if (eqHpOn) eqR.get<0>().process (ctxR);
-                    eqR.get<1>().process (ctxR);
-                    eqR.get<2>().process (ctxR);
-                    eqR.get<3>().process (ctxR);
-                    eqR.get<4>().process (ctxR);
-                    if (eqLpOn) eqR.get<5>().process (ctxR);
-                }
-            }
-        }
 
         // ---------- 1. DRIVE ----------
         if (driveOn && driveMix > 0.0f)
@@ -309,7 +245,7 @@ namespace dsp
             chorus.process (ctx);
         }
 
-        // ---------- 2b. PHASER ----------
+        // ---------- 3. PHASER ----------
         if (phaserOn && R)
         {
             juce::dsp::AudioBlock<float> block (buffer);
@@ -317,7 +253,7 @@ namespace dsp
             phaser.process (ctx);
         }
 
-        // ---------- 3. DELAY ----------
+        // ---------- 4. DELAY ----------
         if (delayOn && delayMix > 0.0f)
         {
             for (int i = 0; i < numSamples; ++i)
@@ -336,13 +272,57 @@ namespace dsp
             }
         }
 
-        // ---------- 4. REVERB ----------
+        // ---------- 5. REVERB ----------
         if (reverbOn && reverbMix > 0.0f)
         {
             if (R)
                 reverb.processStereo (L, R, numSamples);
             else
                 reverb.processMono (L, numSamples);
+        }
+
+        // ---------- 6. EQ (al final) ----------
+        if (eqOn)
+        {
+            auto processChainForChannel = [&] (float* data)
+            {
+                float* chans[] = { data };
+                juce::dsp::AudioBlock<float> b (chans, 1, 0, (size_t) numSamples);
+                juce::dsp::ProcessContextReplacing<float> ctx (b);
+
+                if (eqHpOn) eqL.get<0>().process (ctx);  // se sustituye abajo por canal real
+                // (esto se hace fuera por canal, ver más abajo)
+            };
+            juce::ignoreUnused (processChainForChannel);
+
+            // Canal L
+            {
+                float* chansL[] = { L };
+                juce::dsp::AudioBlock<float> bL (chansL, 1, 0, (size_t) numSamples);
+                juce::dsp::ProcessContextReplacing<float> ctx (bL);
+
+                if (eqHpOn) eqL.get<0>().process (ctx);
+                eqL.get<1>().process (ctx);
+                eqL.get<2>().process (ctx);
+                eqL.get<3>().process (ctx);
+                eqL.get<4>().process (ctx);
+                if (eqLpOn) eqL.get<5>().process (ctx);
+            }
+
+            // Canal R
+            if (R)
+            {
+                float* chansR[] = { R };
+                juce::dsp::AudioBlock<float> bR (chansR, 1, 0, (size_t) numSamples);
+                juce::dsp::ProcessContextReplacing<float> ctx (bR);
+
+                if (eqHpOn) eqR.get<0>().process (ctx);
+                eqR.get<1>().process (ctx);
+                eqR.get<2>().process (ctx);
+                eqR.get<3>().process (ctx);
+                eqR.get<4>().process (ctx);
+                if (eqLpOn) eqR.get<5>().process (ctx);
+            }
         }
     }
 }
