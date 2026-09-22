@@ -535,7 +535,6 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
 
     if (! c.on) return;
 
-    // FASE 6.6: Q fijo en shelving (Low y High). Solo LMid y HMid usan Q ajustable.
     const float lmidQ = juce::jlimit (0.1f, 10.0f, c.lmidQ);
     const float hmidQ = juce::jlimit (0.1f, 10.0f, c.hmidQ);
 
@@ -748,8 +747,10 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     addAndMakeVisible (presetDisplay);
     updatePresetDisplay();
 
-    for (auto* b : { &driveTabBtn, &chorusTabBtn, &delayTabBtn,
-                     &reverbTabBtn, &eqTabBtn, &phaserTabBtn })
+    // ===== FX tabs — ORDEN NUEVO (coincide con el orden de procesamiento real) =====
+    // 0=DIST, 1=CHORUS, 2=PHASER, 3=DELAY, 4=REVERB, 5=EQ
+    for (auto* b : { &driveTabBtn, &chorusTabBtn, &phaserTabBtn,
+                     &delayTabBtn, &reverbTabBtn, &eqTabBtn })
     {
         b->setClickingTogglesState (false);
         b->setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff1c1c1c));
@@ -761,17 +762,17 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 
     driveTabBtn .setButtonText ("DIST");
     chorusTabBtn.setButtonText ("CHORUS");
+    phaserTabBtn.setButtonText ("PHASER");
     delayTabBtn .setButtonText ("DELAY");
     reverbTabBtn.setButtonText ("REVERB");
     eqTabBtn    .setButtonText ("EQ");
-    phaserTabBtn.setButtonText ("PHASER");
 
     driveTabBtn .onClick = [this]() { activeFxTab = 0; updateFxVisibility(); repaint(); };
     chorusTabBtn.onClick = [this]() { activeFxTab = 1; updateFxVisibility(); repaint(); };
-    delayTabBtn .onClick = [this]() { activeFxTab = 2; updateFxVisibility(); repaint(); };
-    reverbTabBtn.onClick = [this]() { activeFxTab = 3; updateFxVisibility(); repaint(); };
-    eqTabBtn    .onClick = [this]() { activeFxTab = 4; updateFxVisibility(); repaint(); };
-    phaserTabBtn.onClick = [this]() { activeFxTab = 5; updateFxVisibility(); repaint(); };
+    phaserTabBtn.onClick = [this]() { activeFxTab = 2; updateFxVisibility(); repaint(); };
+    delayTabBtn .onClick = [this]() { activeFxTab = 3; updateFxVisibility(); repaint(); };
+    reverbTabBtn.onClick = [this]() { activeFxTab = 4; updateFxVisibility(); repaint(); };
+    eqTabBtn    .onClick = [this]() { activeFxTab = 5; updateFxVisibility(); repaint(); };
 
     for (auto* b : { &env1TabBtn, &env2TabBtn, &env3TabBtn })
     {
@@ -955,8 +956,6 @@ void PPGWave3Editor::setActiveEqBand (int band)
     eqQKnob   .setActiveBand (activeEqBand);
     eqGainKnob.setActiveBand (activeEqBand);
 
-    // FASE 6.6: la perilla Q solo aplica a las peak bands (LMid, HMid).
-    // En Low y High (shelving) se deshabilita.
     const bool qApplicable = (activeEqBand == 1 || activeEqBand == 2);
     eqQKnob.setEnabled (qApplicable);
 
@@ -970,12 +969,13 @@ void PPGWave3Editor::setActiveEqBand (int band)
 
 void PPGWave3Editor::updateFxVisibility()
 {
+    // ORDEN: 0=DIST, 1=CHORUS, 2=PHASER, 3=DELAY, 4=REVERB, 5=EQ
     const bool d  = (activeFxTab == 0);
     const bool c  = (activeFxTab == 1);
-    const bool dl = (activeFxTab == 2);
-    const bool r  = (activeFxTab == 3);
-    const bool eq = (activeFxTab == 4);
-    const bool ph = (activeFxTab == 5);
+    const bool ph = (activeFxTab == 2);
+    const bool dl = (activeFxTab == 3);
+    const bool r  = (activeFxTab == 4);
+    const bool eq = (activeFxTab == 5);
 
     driveOn    ->setVisible (d);
     driveAmount.setVisible (d);
@@ -986,6 +986,12 @@ void PPGWave3Editor::updateFxVisibility()
     chorusRate .setVisible (c);
     chorusDepth.setVisible (c);
     chorusMix  .setVisible (c);
+
+    phaserOn      ->setVisible (ph);
+    phaserRate    .setVisible (ph);
+    phaserDepth   .setVisible (ph);
+    phaserFeedback.setVisible (ph);
+    phaserMix     .setVisible (ph);
 
     delayOn    ->setVisible (dl);
     delaySync  ->setVisible (dl);
@@ -1010,18 +1016,12 @@ void PPGWave3Editor::updateFxVisibility()
     eqGainKnob.setVisible (eq);
     eqCurveDisplay.setVisible (eq);
 
-    phaserOn      ->setVisible (ph);
-    phaserRate    .setVisible (ph);
-    phaserDepth   .setVisible (ph);
-    phaserFeedback.setVisible (ph);
-    phaserMix     .setVisible (ph);
-
     driveTabBtn .setToggleState (d,  juce::dontSendNotification);
     chorusTabBtn.setToggleState (c,  juce::dontSendNotification);
+    phaserTabBtn.setToggleState (ph, juce::dontSendNotification);
     delayTabBtn .setToggleState (dl, juce::dontSendNotification);
     reverbTabBtn.setToggleState (r,  juce::dontSendNotification);
     eqTabBtn    .setToggleState (eq, juce::dontSendNotification);
-    phaserTabBtn.setToggleState (ph, juce::dontSendNotification);
 }
 
 // ==================== Env Tab visibility ====================
@@ -1522,14 +1522,15 @@ void PPGWave3Editor::resized()
         juce::Rectangle<int> inner;
         titleRowFor (fxArea, fxInfo, inner);
 
+        // ===== Fila de tabs en ORDEN NUEVO =====
         auto tabRow = inner.removeFromTop (24);
         const int tabW = tabRow.getWidth() / 6;
         driveTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
         chorusTabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        phaserTabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
         delayTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
         reverbTabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
-        eqTabBtn    .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
-        phaserTabBtn.setBounds (tabRow.reduced (1, 0));
+        eqTabBtn    .setBounds (tabRow.reduced (1, 0));
 
         inner.removeFromTop (6);
 
@@ -1553,6 +1554,22 @@ void PPGWave3Editor::resized()
 
         { auto area = controlsArea; layoutFullRow (area, *driveOn, driveAmount, driveTone, driveMix); }
         { auto area = controlsArea; layoutFullRow (area, *chorusOn, chorusRate, chorusDepth, chorusMix); }
+
+        // Phaser: toggle + 4 knobs
+        {
+            auto area = controlsArea;
+            auto toggleArea = area.removeFromLeft (110);
+            phaserOn->setBounds (toggleArea.withSizeKeepingCentre (
+                toggleArea.getWidth() - 12, 40));
+            area.removeFromLeft (24);
+            const int kw = area.getWidth() / 4;
+            phaserRate    .setBounds (area.removeFromLeft (kw).reduced (4, 0));
+            phaserDepth   .setBounds (area.removeFromLeft (kw).reduced (4, 0));
+            phaserFeedback.setBounds (area.removeFromLeft (kw).reduced (4, 0));
+            phaserMix     .setBounds (area.reduced (4, 0));
+        }
+
+        // Delay
         {
             auto area = controlsArea;
             auto toggleArea = area.removeFromLeft (110);
@@ -1566,6 +1583,7 @@ void PPGWave3Editor::resized()
             delayFeedback.setBounds (area.removeFromLeft (kw).reduced (6, 0));
             delayMix     .setBounds (area.reduced (6, 0));
         }
+
         { auto area = controlsArea; layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix); }
 
         // EQ
@@ -1605,20 +1623,6 @@ void PPGWave3Editor::resized()
             eqFreqKnob.setBounds (knobZone.removeFromLeft (kw).reduced (4, 0));
             eqQKnob   .setBounds (knobZone.removeFromLeft (kw).reduced (4, 0));
             eqGainKnob.setBounds (knobZone.reduced (4, 0));
-        }
-
-        // Phaser
-        {
-            auto area = controlsArea;
-            auto toggleArea = area.removeFromLeft (110);
-            phaserOn->setBounds (toggleArea.withSizeKeepingCentre (
-                toggleArea.getWidth() - 12, 40));
-            area.removeFromLeft (24);
-            const int kw = area.getWidth() / 4;
-            phaserRate    .setBounds (area.removeFromLeft (kw).reduced (4, 0));
-            phaserDepth   .setBounds (area.removeFromLeft (kw).reduced (4, 0));
-            phaserFeedback.setBounds (area.removeFromLeft (kw).reduced (4, 0));
-            phaserMix     .setBounds (area.reduced (4, 0));
         }
     }
 
