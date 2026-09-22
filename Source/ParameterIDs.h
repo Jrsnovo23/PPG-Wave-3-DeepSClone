@@ -105,14 +105,29 @@ namespace ParamIDs
     inline constexpr auto reverbMix   = "reverb_mix";
 
     // ============ FASE 6.7: EQ 4 BANDAS ============
-    inline constexpr auto eqOn       = "eq_on";
-    inline constexpr auto eqLowFreq  = "eq_low_freq";
-    inline constexpr auto eqLowGain  = "eq_low_gain";
+    // On/Off global + HP/LP filters
+    inline constexpr auto eqOn   = "eq_on";
+    inline constexpr auto eqHpOn = "eq_hp_on";
+    inline constexpr auto eqLpOn = "eq_lp_on";
+
+    // LOW band (low shelf)
+    inline constexpr auto eqLowFreq = "eq_low_freq";
+    inline constexpr auto eqLowQ    = "eq_low_q";
+    inline constexpr auto eqLowGain = "eq_low_gain";
+
+    // LOW MID band (peak)
     inline constexpr auto eqLmidFreq = "eq_lmid_freq";
+    inline constexpr auto eqLmidQ    = "eq_lmid_q";
     inline constexpr auto eqLmidGain = "eq_lmid_gain";
+
+    // HIGH MID band (peak)
     inline constexpr auto eqHmidFreq = "eq_hmid_freq";
+    inline constexpr auto eqHmidQ    = "eq_hmid_q";
     inline constexpr auto eqHmidGain = "eq_hmid_gain";
+
+    // HIGH band (high shelf)
     inline constexpr auto eqHighFreq = "eq_high_freq";
+    inline constexpr auto eqHighQ    = "eq_high_q";
     inline constexpr auto eqHighGain = "eq_high_gain";
 
     // ============ FASE 6.7: PHASER ============
