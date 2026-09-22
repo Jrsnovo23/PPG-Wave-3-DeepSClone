@@ -61,7 +61,6 @@ namespace Params
             "Envelope 3"
         };
 
-        // FASE 6.6: "OSC1 Fine" añadido al FINAL.
         const juce::StringArray modDests {
             "None", "OSC1 Pitch", "OSC2 Pitch", "OSC1 Wave Pos", "OSC2 Wave Pos",
             "Filter Cutoff", "Amplifier", "Filter Reso", "OSC2 Fine", "OSC1 Fine"
@@ -111,7 +110,7 @@ namespace Params
         // ============ Master ============
         makeFloat (ParamIDs::masterGain, "Master", 0.0f, 1.0f, 0.7f);
 
-        // ============ FASE 4: LFOs ============
+        // ============ LFOs ============
         makeChoice   (ParamIDs::lfo1Wave,  "LFO1 Wave",  lfoWaves, 0);
         makeFloatLog (ParamIDs::lfo1Rate,  "LFO1 Rate",  0.01f, 40.0f, 1.0f, "Hz");
         makeFloat    (ParamIDs::lfo1Depth, "LFO1 Depth", 0.0f, 1.0f, 0.0f);
@@ -124,7 +123,7 @@ namespace Params
         makeFloat    (ParamIDs::lfo2Phase, "LFO2 Phase", 0.0f, 1.0f, 0.0f);
         makeChoice   (ParamIDs::lfo2Sync,  "LFO2 Sync",  syncDivisions, 0);
 
-        // ============ FASE 4: Matriz ============
+        // ============ Matriz ============
         auto makeModSlot = [&] (const juce::String& srcId, const juce::String& dstId,
                                 const juce::String& amtId, const juce::String& num)
         {
@@ -138,7 +137,7 @@ namespace Params
         makeModSlot (ParamIDs::mod3Source, ParamIDs::mod3Dest, ParamIDs::mod3Amount, "3");
         makeModSlot (ParamIDs::mod4Source, ParamIDs::mod4Dest, ParamIDs::mod4Amount, "4");
 
-        // ============ FASE 5: Efectos ============
+        // ============ Efectos ============
         makeBool  (ParamIDs::driveOn,     "Drive On",     false);
         makeFloat (ParamIDs::driveAmount, "Drive",         1.0f, 20.0f, 3.0f);
         makeFloat (ParamIDs::driveTone,   "Drive Tone",    0.0f,  1.0f, 0.5f);
@@ -160,7 +159,7 @@ namespace Params
         makeFloat (ParamIDs::reverbDamp, "Reverb Damp", 0.0f, 1.0f, 0.5f);
         makeFloat (ParamIDs::reverbMix,  "Reverb Mix",  0.0f, 1.0f, 0.3f);
 
-        // ============ FASE 6.7: EQ 4 bandas ============
+        // ============ EQ 4 bandas ============
         makeBool (ParamIDs::eqOn,   "EQ On",    true);
         makeBool (ParamIDs::eqHpOn, "EQ HP On", false);
         makeBool (ParamIDs::eqLpOn, "EQ LP On", false);
@@ -181,12 +180,21 @@ namespace Params
         makeFloat    (ParamIDs::eqHighQ,    "EQ High Q",    0.1f,  10.0f,    0.707f);
         makeFloat    (ParamIDs::eqHighGain, "EQ High Gain",-18.0f, 18.0f,    0.0f, "dB");
 
-        // ============ FASE 6.7: Phaser ============
+        // ============ Phaser ============
         makeBool  (ParamIDs::phaserOn,       "Phaser On",       false);
         makeFloat (ParamIDs::phaserRate,     "Phaser Rate",     0.05f, 5.0f, 0.5f, "Hz");
         makeFloat (ParamIDs::phaserDepth,    "Phaser Depth",    0.0f,  1.0f, 0.5f);
         makeFloat (ParamIDs::phaserFeedback, "Phaser Feedbk",   0.0f,  0.95f, 0.5f);
         makeFloat (ParamIDs::phaserMix,      "Phaser Mix",      0.0f,  1.0f, 0.5f);
+
+        // ============ FASE 8: Vintage Character ============
+        makeBool  (ParamIDs::vintageOn,     "Vintage On",     false);
+        makeFloat (ParamIDs::vintageAmount, "Vintage Amount", 0.0f, 1.0f, 0.5f);
+        makeFloat (ParamIDs::vintageBits,   "Vintage Bits",   4.0f, 16.0f, 12.0f, "bit");
+        makeFloat (ParamIDs::vintageSr,     "Vintage SR",     1.0f, 32.0f, 1.0f, "x");
+        makeFloat (ParamIDs::vintageNoise,  "Vintage Noise",  0.0f, 1.0f, 0.15f);
+        makeFloat (ParamIDs::vintageDrift,  "Vintage Drift",  0.0f, 1.0f, 0.3f);
+        makeFloat (ParamIDs::vintageVar,    "Vintage Var",    0.0f, 1.0f, 0.3f);
 
         return { params.begin(), params.end() };
     }
