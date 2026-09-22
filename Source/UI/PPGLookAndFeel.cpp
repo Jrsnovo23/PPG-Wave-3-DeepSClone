@@ -28,7 +28,6 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
     const float trackThickness   = juce::jmax (2.0f, radius * 0.16f);
     const float pointerThickness = juce::jmax (1.5f, radius * 0.09f);
 
-    // 1. Track (fondo oscuro)
     juce::Path track;
     track.addCentredArc (centre.x, centre.y,
                          radius - trackThickness * 0.5f,
@@ -39,7 +38,6 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
                                                juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
 
-    // 2. Fill (arco dorado hasta la posición actual)
     juce::Path fill;
     fill.addCentredArc (centre.x, centre.y,
                         radius - trackThickness * 0.5f,
@@ -50,7 +48,6 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
                                               juce::PathStrokeType::curved,
                                               juce::PathStrokeType::rounded));
 
-    // 3. Círculo interior oscuro
     const auto innerRadius = radius - trackThickness - 2.0f;
     if (innerRadius > 1.0f)
     {
@@ -63,7 +60,6 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
                        innerRadius * 2.0f, innerRadius * 2.0f, 1.0f);
     }
 
-    // 4. Puntero (línea dorada desde el centro hacia el borde)
     const float pointerLength = innerRadius * 0.85f;
     juce::Path pointer;
     pointer.startNewSubPath (0.0f, -innerRadius * 0.30f);
@@ -87,18 +83,15 @@ void PPGLookAndFeel::drawLinearSlider (juce::Graphics& g,
 
     if (isVertical)
     {
-        // -------- VERTICAL (pitch / mod wheels) --------
         const auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat();
         const float trackX = bounds.getCentreX();
         const float trackW = 4.0f;
         const float thumbR = 6.0f;
 
-        // Track fondo
         g.setColour (juce::Colour (0xff2a2a2a));
         g.fillRoundedRectangle (trackX - trackW * 0.5f, bounds.getY(),
                                 trackW, bounds.getHeight(), 2.0f);
 
-        // Fill dorado: desde el thumb hasta el extremo "inferior" del track
         const float bottomY = juce::jmax (minSliderPos, maxSliderPos);
         const float topY    = juce::jmin (minSliderPos, maxSliderPos);
 
@@ -114,7 +107,6 @@ void PPGLookAndFeel::drawLinearSlider (juce::Graphics& g,
             }
         }
 
-        // Thumb
         g.setColour (accentBright());
         g.fillEllipse (trackX - thumbR, sliderPos - thumbR, thumbR * 2.0f, thumbR * 2.0f);
         g.setColour (juce::Colour (0xff151515));
@@ -123,7 +115,6 @@ void PPGLookAndFeel::drawLinearSlider (juce::Graphics& g,
         return;
     }
 
-    // -------- HORIZONTAL (faders de la matriz, etc.) --------
     const auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat();
     const float trackY    = bounds.getCentreY();
     const float trackH    = 4.0f;
@@ -225,8 +216,8 @@ void PPGLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height,
 
 juce::Font PPGLookAndFeel::getComboBoxFont (juce::ComboBox& box)
 {
-    return juce::Font (juce::FontOptions (juce::jlimit (9.0f, 13.0f,
-                                       (float) box.getHeight() * 0.5f)));
+    return juce::Font (juce::FontOptions (juce::jlimit (10.0f, 14.0f,
+                                       (float) box.getHeight() * 0.55f)));
 }
 
 juce::Font PPGLookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeight)
@@ -234,4 +225,10 @@ juce::Font PPGLookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeigh
     return juce::Font (juce::FontOptions (juce::jlimit (9.0f, 14.0f,
                                        (float) buttonHeight * 0.5f),
                                           juce::Font::bold));
+}
+
+// FASE 6.6: fuente legible para los menús desplegables.
+juce::Font PPGLookAndFeel::getPopupMenuFont()
+{
+    return juce::Font (juce::FontOptions (14.0f));
 }
