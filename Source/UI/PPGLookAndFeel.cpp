@@ -18,16 +18,23 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
                                        float sliderPos,
                                        float rotaryStartAngle,
                                        float rotaryEndAngle,
-                                       juce::Slider& /*slider*/)
+                                       juce::Slider& slider)
 {
     const auto bounds  = juce::Rectangle<int> (x, y, width, height).toFloat().reduced (2.0f);
     const auto radius  = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre  = bounds.getCentre();
     const auto angle   = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
+    const bool enabled = slider.isEnabled();
+
     const float trackThickness   = juce::jmax (2.0f, radius * 0.16f);
     const float pointerThickness = juce::jmax (1.5f, radius * 0.09f);
 
+    // Colores según estado
+    const juce::Colour fillColour   = enabled ? accent()       : juce::Colour (0xff333333);
+    const juce::Colour pointerColour = enabled ? accentBright() : juce::Colour (0xff555555);
+
+    // 1. Track
     juce::Path track;
     track.addCentredArc (centre.x, centre.y,
                          radius - trackThickness * 0.5f,
@@ -38,16 +45,18 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
                                                juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
 
+    // 2. Fill
     juce::Path fill;
     fill.addCentredArc (centre.x, centre.y,
                         radius - trackThickness * 0.5f,
                         radius - trackThickness * 0.5f,
                         0.0f, rotaryStartAngle, angle, true);
-    g.setColour (accent());
+    g.setColour (fillColour);
     g.strokePath (fill, juce::PathStrokeType (trackThickness,
                                               juce::PathStrokeType::curved,
                                               juce::PathStrokeType::rounded));
 
+    // 3. Círculo interior
     const auto innerRadius = radius - trackThickness - 2.0f;
     if (innerRadius > 1.0f)
     {
@@ -60,11 +69,12 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
                        innerRadius * 2.0f, innerRadius * 2.0f, 1.0f);
     }
 
+    // 4. Puntero
     const float pointerLength = innerRadius * 0.85f;
     juce::Path pointer;
     pointer.startNewSubPath (0.0f, -innerRadius * 0.30f);
     pointer.lineTo           (0.0f, -innerRadius * 0.30f - pointerLength);
-    g.setColour (accentBright());
+    g.setColour (pointerColour);
     g.strokePath (pointer,
                   juce::PathStrokeType (pointerThickness,
                                         juce::PathStrokeType::curved,
@@ -72,7 +82,7 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
                   juce::AffineTransform::rotation (angle).translated (centre.x, centre.y));
 }
 
-// ============ LINEAR SLIDER (soporta HORIZONTAL y VERTICAL) ============
+// ============ LINEAR SLIDER ============
 void PPGLookAndFeel::drawLinearSlider (juce::Graphics& g,
                                        int x, int y, int width, int height,
                                        float sliderPos, float minSliderPos, float maxSliderPos,
@@ -231,4 +241,27 @@ juce::Font PPGLookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeigh
 juce::Font PPGLookAndFeel::getPopupMenuFont()
 {
     return juce::Font (juce::FontOptions (14.0f));
+}
+
+// FASE 6.6: alto y ancho de cada item del popup (si no, el texto se ve diminuto).
+void PPGLookAndFeel::getIdealPopupMenuItemSize (const juce::String& text, bool isSeparator,
+                                                int /*standardMenuItemHeight*/,
+                                                int& idealWidth, int& idealHeight)
+{
+    if (isSeparator)
+    {
+        idealWidth  = 80;
+        idealHeight = 8;
+        return;
+    }
+
+    const auto font = getPopupMenuFont();
+
+    juce::GlyphArrangement ga;
+    ga.addLineOfText (font, text, 0.0f, 0.0f);
+    const auto bbox = ga.getBoundingBox (0, ga.getNumGlyphs(), true);
+    const int textW = (int) std::ceil (bbox.getWidth());
+
+    idealHeight = juce::jmax (26, (int) std::ceil (font.getHeight() * 1.9f));
+    idealWidth  = juce::jmax (140, textW + 60);
 }
