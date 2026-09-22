@@ -11,7 +11,10 @@ namespace synth
         return 440.0f * std::pow (2.0f, (float) (midiNote - 69) / 12.0f);
     }
 
-    SynthVoice::SynthVoice (juce::AudioProcessorValueTreeState& s) : apvts (s) {}
+    SynthVoice::SynthVoice (juce::AudioProcessorValueTreeState& s) : apvts (s)
+    {
+        vintageRandom.setSeed ((juce::int64) juce::Time::currentTimeMillis());
+    }
 
     bool SynthVoice::canPlaySound (juce::SynthesiserSound* s)
     {
@@ -73,6 +76,27 @@ namespace synth
 
         juce::Random r;
         randomValue = r.nextFloat() * 2.0f - 1.0f;
+
+        // ===== FASE 8: Voice variation =====
+        float varAmt = 0.0f;
+        if (auto* p = apvts.getRawParameterValue (ParamIDs::vintageVar))
+            varAmt = p->load();
+
+        if (varAmt > 0.0f)
+        {
+            voiceDetune       = (vintageRandom.nextFloat() * 2.0f - 1.0f) * varAmt * 15.0f;    // ±15 cents
+            voiceFilterOffset = (vintageRandom.nextFloat() * 2.0f - 1.0f) * varAmt * 0.25f;   // ±0.25 octavas
+            voiceLevelOffset  = 1.0f + (vintageRandom.nextFloat() * 2.0f - 1.0f) * varAmt * 0.1f; // ±10%
+        }
+        else
+        {
+            voiceDetune       = 0.0f;
+            voiceFilterOffset = 0.0f;
+            voiceLevelOffset  = 1.0f;
+        }
+
+        driftSeed  = vintageRandom.nextFloat();
+        driftPhase = 0.0f;
 
         isActive = true;
     }
@@ -163,14 +187,17 @@ namespace synth
 
         const float bendSemis = pitchBendValue * 2.0f;
 
+        // ===== FASE 8: Vintage drift =====
+        const float driftAmt = getF (ParamIDs::vintageDrift, 0.0f);
+        const double sr     = getSampleRate();
+        const float driftPhaseInc = (sr > 0.0) ? (float) (0.2 / sr) : 0.0f;
+        const float twoPiF  = juce::MathConstants<float>::twoPi;
+
         auto freqOf = [&] (int oct, float semis, float cents) noexcept
         {
             const float st = (float) oct * 12.0f + semis + cents / 100.0f + bendSemis;
             return currentFreq * std::pow (2.0f, st / 12.0f);
         };
-
-        const float baseF1 = freqOf (oct1, sem1, fin1);
-        const float baseF2 = freqOf (oct2, sem2, fin2);
 
         // ---------- Filtro ----------
         const int   fType      = getI (ParamIDs::filterType,     0);
@@ -181,10 +208,11 @@ namespace synth
 
         filter.setType (fType);
 
-        const float keyTrackedCutoff = baseCutoff * std::pow (2.0f,
-            fKeyTrack * (currentMidiNote - 60.0f) / 12.0f);
+        const float keyTrackedCutoff = baseCutoff
+            * std::pow (2.0f, fKeyTrack * (currentMidiNote - 60.0f) / 12.0f)
+            * std::pow (2.0f, voiceFilterOffset);
 
-        // ---------- LFOs con Sync ----------
+        // ---------- LFOs ----------
         const double bpm = bpmSource ? bpmSource->load() : 120.0;
         const double beatSec = 60.0 / juce::jmax (1.0, bpm);
 
@@ -192,7 +220,6 @@ namespace synth
         {
             const int syncIdx = getI (syncId, 0);
             if (syncIdx == 0) return freeRate;
-
             const float beats = syncIndexToBeats (syncIdx);
             if (beats <= 0.0f) return freeRate;
             return (float) (1.0 / (beatSec * beats));
@@ -232,6 +259,17 @@ namespace synth
             const float filtEnv  = filtAdsr.getNextSample();
             const float env3Val  = env3.getNextSample();
 
+            // ===== FASE 8: drift LFO (slow sine) =====
+            float driftCents = 0.0f;
+            if (driftAmt > 0.0f)
+            {
+                driftPhase += driftPhaseInc;
+                if (driftPhase >= 1.0f) driftPhase -= 1.0f;
+                driftCents = std::sin (driftPhase * twoPiF + driftSeed * twoPiF) * driftAmt * 10.0f;
+            }
+
+            const float totalCents = driftCents + voiceDetune;
+
             const float lfo1Val = lfo1.getNextSample (lfo1WaveEnum, lfo1R, lfo1P) * lfo1D;
             const float lfo2Val = lfo2.getNextSample (lfo2WaveEnum, lfo2R, lfo2P) * lfo2D;
 
@@ -245,8 +283,8 @@ namespace synth
             float modCutoff = 0.0f;
             float modAmp    = 1.0f;
             float modReso   = 0.0f;
-            float modFine1  = 0.0f;   // FASE 6.6: OSC1 Fine
-            float modFine2  = 0.0f;   // OSC2 Fine
+            float modFine1  = 0.0f;
+            float modFine2  = 0.0f;
 
             for (const auto& m : mods)
             {
@@ -280,14 +318,17 @@ namespace synth
                     case 6: modAmp    += v; break;
                     case 7: modReso   += v; break;
                     case 8: modFine2  += v; break;
-                    case 9: modFine1  += v; break;   // FASE 6.6: OSC1 Fine
+                    case 9: modFine1  += v; break;
                     default: break;
                 }
             }
 
-            // FASE 6.6: añadido modFine1 al osc1 (±50 cents con amount=1.0)
-            const float f1   = baseF1 * std::pow (2.0f, modPitch1 * 2.0f + modFine1 / 24.0f);
-            const float f2   = baseF2 * std::pow (2.0f, modPitch2 * 2.0f + modFine2 / 24.0f);
+            // Aplicar totalCents (drift + voiceDetune) a ambos osciladores.
+            const float f1 = freqOf (oct1, sem1, fin1 + totalCents + modFine1)
+                             * std::pow (2.0f, modPitch1 * 2.0f);
+            const float f2 = freqOf (oct2, sem2, fin2 + totalCents + modFine2)
+                             * std::pow (2.0f, modPitch2 * 2.0f);
+
             const float pos1 = juce::jlimit (0.0f, 1.0f, basePos1 + modWT1);
             const float pos2 = juce::jlimit (0.0f, 1.0f, basePos2 + modWT2);
 
@@ -304,7 +345,8 @@ namespace synth
             float mix = s1 * lvl1 + s2 * lvl2;
 
             mix = filter.processSample (mix);
-            mix *= env * velocityGain * master * juce::jlimit (0.0f, 2.0f, modAmp);
+            mix *= env * velocityGain * master * voiceLevelOffset
+                 * juce::jlimit (0.0f, 2.0f, modAmp);
 
             L[i] += mix;
             if (R) R[i] += mix;
