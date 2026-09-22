@@ -120,12 +120,14 @@ private:
 
     // ===== FASE 6.7: knob dinámico para el EQ =====
     // Apunta a uno de 4 parámetros (uno por banda) según la banda activa.
+    // Trabaja siempre en 0..1 normalizado para que no falle con rangos
+    // negativos (como el Gain -18..+18).
     class EQBandKnob : public juce::Component,
                        private juce::Timer
     {
     public:
         EQBandKnob (juce::AudioProcessorValueTreeState& apvts,
-                    const juce::StringArray& paramIdsForBands,  // 4 IDs
+                    const juce::StringArray& paramIdsForBands,
                     const juce::String& labelText,
                     InfoDisplay* display);
         ~EQBandKnob() override;
@@ -139,9 +141,10 @@ private:
         void timerCallback() override;
         void sliderChanged();
         void refreshSliderFromParam();
+        void updateInfoText();
 
         juce::AudioProcessorValueTreeState& apvtsRef;
-        juce::StringArray ids;           // 4 param IDs
+        juce::StringArray ids;
         juce::Slider  slider;
         juce::Label   label;
         InfoDisplay*  infoDisplay = nullptr;
@@ -149,6 +152,35 @@ private:
         int           activeBand = 0;
         bool          updatingFromParam = false;
         float         scale = 1.0f;
+    };
+
+    // ===== FASE 6.7: curva del EQ en tiempo real =====
+    class EQCurveDisplay : public juce::Component,
+                           private juce::Timer
+    {
+    public:
+        explicit EQCurveDisplay (juce::AudioProcessorValueTreeState& apvts);
+        ~EQCurveDisplay() override;
+        void paint (juce::Graphics&) override;
+
+    private:
+        void timerCallback() override;
+        struct Cache
+        {
+            bool  on = true;
+            bool  hpOn = false, lpOn = false;
+            float lowF = 100.0f,  lowQ = 0.707f, lowG = 0.0f;
+            float lmidF = 500.0f, lmidQ = 0.707f, lmidG = 0.0f;
+            float hmidF = 2000.0f, hmidQ = 0.707f, hmidG = 0.0f;
+            float highF = 8000.0f, highQ = 0.707f, highG = 0.0f;
+        };
+        Cache readParams() const;
+        static bool cacheChanged (const Cache& a, const Cache& b);
+
+        juce::AudioProcessorValueTreeState& apvtsRef;
+        Cache cached;
+        bool  hasCached = false;
+        float scale = 1.0f;
     };
 
     class PresetDisplay : public juce::Component
@@ -240,7 +272,7 @@ private:
     // ===== FX — pestañas (6 tabs) =====
     juce::TextButton driveTabBtn, chorusTabBtn, delayTabBtn, reverbTabBtn;
     juce::TextButton eqTabBtn, phaserTabBtn;
-    int activeFxTab = 0;   // 0=Drive, 1=Chorus, 2=Delay, 3=Reverb, 4=EQ, 5=Phaser
+    int activeFxTab = 0;
 
     // FX — Drive
     std::unique_ptr<ToggleButton> driveOn;
@@ -256,12 +288,13 @@ private:
     std::unique_ptr<ToggleButton> reverbOn;
     RotaryKnob reverbSize, reverbDamp, reverbMix;
 
-    // ===== FASE 6.7: FX — EQ (nuevo diseño) =====
+    // ===== FASE 6.7: FX — EQ =====
     std::unique_ptr<ToggleButton> eqOn;
     std::unique_ptr<ToggleButton> eqHpOn, eqLpOn;
     juce::TextButton eqLowBtn, eqLmidBtn, eqHmidBtn, eqHighBtn;
     EQBandKnob eqFreqKnob, eqQKnob, eqGainKnob;
-    int activeEqBand = 0;   // 0=Low, 1=LMid, 2=HMid, 3=High
+    EQCurveDisplay eqCurveDisplay;
+    int activeEqBand = 0;
 
     // ===== FASE 6.7: FX — Phaser =====
     std::unique_ptr<ToggleButton> phaserOn;
