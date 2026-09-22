@@ -38,7 +38,7 @@ namespace ParamIDs
     inline constexpr auto filtSustain = "filt_sustain";
     inline constexpr auto filtRelease = "filt_release";
 
-    // --- Envelope 3 (ENV3, libre — enrutable en la matriz) ---
+    // --- Envelope 3 (ENV3, libre) ---
     inline constexpr auto env3Attack  = "env3_attack";
     inline constexpr auto env3Decay   = "env3_decay";
     inline constexpr auto env3Sustain = "env3_sustain";
@@ -103,4 +103,22 @@ namespace ParamIDs
     inline constexpr auto reverbSize  = "reverb_size";
     inline constexpr auto reverbDamp  = "reverb_damp";
     inline constexpr auto reverbMix   = "reverb_mix";
+
+    // ============ FASE 6.7: EQ 4 BANDAS ============
+    inline constexpr auto eqOn       = "eq_on";
+    inline constexpr auto eqLowFreq  = "eq_low_freq";
+    inline constexpr auto eqLowGain  = "eq_low_gain";
+    inline constexpr auto eqLmidFreq = "eq_lmid_freq";
+    inline constexpr auto eqLmidGain = "eq_lmid_gain";
+    inline constexpr auto eqHmidFreq = "eq_hmid_freq";
+    inline constexpr auto eqHmidGain = "eq_hmid_gain";
+    inline constexpr auto eqHighFreq = "eq_high_freq";
+    inline constexpr auto eqHighGain = "eq_high_gain";
+
+    // ============ FASE 6.7: PHASER ============
+    inline constexpr auto phaserOn       = "phaser_on";
+    inline constexpr auto phaserRate     = "phaser_rate";
+    inline constexpr auto phaserDepth    = "phaser_depth";
+    inline constexpr auto phaserFeedback = "phaser_feedback";
+    inline constexpr auto phaserMix      = "phaser_mix";
 }
