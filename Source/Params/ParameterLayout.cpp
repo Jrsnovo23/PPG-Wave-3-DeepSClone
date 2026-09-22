@@ -61,9 +61,10 @@ namespace Params
             "Envelope 3"
         };
 
+        // FASE 6.6: "OSC1 Fine" añadido al FINAL.
         const juce::StringArray modDests {
             "None", "OSC1 Pitch", "OSC2 Pitch", "OSC1 Wave Pos", "OSC2 Wave Pos",
-            "Filter Cutoff", "Amplifier", "Filter Reso", "OSC2 Fine"
+            "Filter Cutoff", "Amplifier", "Filter Reso", "OSC2 Fine", "OSC1 Fine"
         };
 
         // ============ Oscilador 1 ============
@@ -138,52 +139,44 @@ namespace Params
         makeModSlot (ParamIDs::mod4Source, ParamIDs::mod4Dest, ParamIDs::mod4Amount, "4");
 
         // ============ FASE 5: Efectos ============
-        // Drive
         makeBool  (ParamIDs::driveOn,     "Drive On",     false);
         makeFloat (ParamIDs::driveAmount, "Drive",         1.0f, 20.0f, 3.0f);
         makeFloat (ParamIDs::driveTone,   "Drive Tone",    0.0f,  1.0f, 0.5f);
         makeFloat (ParamIDs::driveMix,    "Drive Mix",     0.0f,  1.0f, 0.5f);
 
-        // Chorus
         makeBool  (ParamIDs::chorusOn,    "Chorus On",   false);
         makeFloat (ParamIDs::chorusRate,  "Chorus Rate",  0.05f, 5.0f, 0.5f, "Hz");
         makeFloat (ParamIDs::chorusDepth, "Chorus Depth", 0.0f,  1.0f, 0.25f);
         makeFloat (ParamIDs::chorusMix,   "Chorus Mix",   0.0f,  1.0f, 0.5f);
 
-        // Delay
         makeBool  (ParamIDs::delayOn,       "Delay On",     false);
-        makeChoice(ParamIDs::delaySync,     "Delay Sync",   syncDivisions, 3); // 1/4
+        makeChoice(ParamIDs::delaySync,     "Delay Sync",   syncDivisions, 3);
         makeFloat (ParamIDs::delayTime,     "Delay Time",   0.01f, 2.0f, 0.3f, "s");
         makeFloat (ParamIDs::delayFeedback, "Delay Feedbk", 0.0f, 0.95f, 0.4f);
         makeFloat (ParamIDs::delayMix,      "Delay Mix",    0.0f,  1.0f, 0.3f);
 
-        // Reverb
         makeBool  (ParamIDs::reverbOn,   "Reverb On",   false);
         makeFloat (ParamIDs::reverbSize, "Reverb Size", 0.0f, 1.0f, 0.6f);
         makeFloat (ParamIDs::reverbDamp, "Reverb Damp", 0.0f, 1.0f, 0.5f);
         makeFloat (ParamIDs::reverbMix,  "Reverb Mix",  0.0f, 1.0f, 0.3f);
 
         // ============ FASE 6.7: EQ 4 bandas ============
-        makeBool (ParamIDs::eqOn,   "EQ On",   true);
+        makeBool (ParamIDs::eqOn,   "EQ On",    true);
         makeBool (ParamIDs::eqHpOn, "EQ HP On", false);
         makeBool (ParamIDs::eqLpOn, "EQ LP On", false);
 
-        // LOW (shelf)
         makeFloatLog (ParamIDs::eqLowFreq, "EQ Low Freq",  30.0f, 500.0f,   100.0f, "Hz");
         makeFloat    (ParamIDs::eqLowQ,    "EQ Low Q",     0.1f,  10.0f,    0.707f);
         makeFloat    (ParamIDs::eqLowGain, "EQ Low Gain", -18.0f, 18.0f,    0.0f, "dB");
 
-        // LOW MID (peak)
         makeFloatLog (ParamIDs::eqLmidFreq, "EQ LMid Freq", 100.0f, 2000.0f, 500.0f, "Hz");
         makeFloat    (ParamIDs::eqLmidQ,    "EQ LMid Q",    0.1f,  10.0f,    0.707f);
         makeFloat    (ParamIDs::eqLmidGain, "EQ LMid Gain",-18.0f, 18.0f,    0.0f, "dB");
 
-        // HIGH MID (peak)
         makeFloatLog (ParamIDs::eqHmidFreq, "EQ HMid Freq", 1000.0f, 8000.0f, 2000.0f, "Hz");
         makeFloat    (ParamIDs::eqHmidQ,    "EQ HMid Q",    0.1f,  10.0f,    0.707f);
         makeFloat    (ParamIDs::eqHmidGain, "EQ HMid Gain",-18.0f, 18.0f,    0.0f, "dB");
 
-        // HIGH (shelf)
         makeFloatLog (ParamIDs::eqHighFreq, "EQ High Freq", 2000.0f, 20000.0f, 8000.0f, "Hz");
         makeFloat    (ParamIDs::eqHighQ,    "EQ High Q",    0.1f,  10.0f,    0.707f);
         makeFloat    (ParamIDs::eqHighGain, "EQ High Gain",-18.0f, 18.0f,    0.0f, "dB");
