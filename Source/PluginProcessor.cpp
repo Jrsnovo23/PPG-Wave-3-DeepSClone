@@ -38,7 +38,7 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
 
-    // 1. Leer BPM del host
+    // 1. BPM
     if (auto* ph = getPlayHead())
     {
         if (auto pos = ph->getPosition())
@@ -48,10 +48,20 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         }
     }
 
-    // 2. FASE 6.8: Inyectar notas del teclado virtual
+    // 2. FASE 6.8: Reflejar notas DAW en el teclado virtual.
+    for (const auto metadata : midi)
+    {
+        const auto msg = metadata.getMessage();
+        if (msg.isNoteOn())
+            keyboardState.noteOn (msg.getChannel(), msg.getNoteNumber(), msg.getFloatVelocity());
+        else if (msg.isNoteOff())
+            keyboardState.noteOff (msg.getChannel(), msg.getNoteNumber(), msg.getFloatVelocity());
+    }
+
+    // 3. FASE 6.8: Inyectar notas del teclado virtual.
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
 
-    // 3. FASE 6.8: Inyectar Pitch Bend y Mod Wheel siempre
+    // 4. FASE 6.8: Inyectar Pitch Bend y Mod Wheel.
     {
         const int pbValue = juce::jlimit (0, 16383,
             (int) std::lround (8192.0f + pitchBendAtomic.load() * 8192.0f));
@@ -62,10 +72,10 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         midi.addEvent (juce::MidiMessage::controllerEvent (1, 1, mwValue), 0);
     }
 
-    // 4. Sintetizador
+    // 5. Sintetizador
     synth.renderNextBlock (buffer, midi, 0, buffer.getNumSamples());
 
-    // 5. Efectos globales
+    // 6. Efectos globales
     auto getF = [&] (const char* id, float def) -> float
     {
         if (auto* p = apvts.getRawParameterValue (id)) return p->load();
@@ -82,10 +92,28 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         return def;
     };
 
+    // FASE 6.7: EQ primero
+    effects.setEQ (getB (ParamIDs::eqOn, true),
+                   getF (ParamIDs::eqLowFreq,  100.0f),
+                   getF (ParamIDs::eqLowGain,  0.0f),
+                   getF (ParamIDs::eqLmidFreq, 500.0f),
+                   getF (ParamIDs::eqLmidGain, 0.0f),
+                   getF (ParamIDs::eqHmidFreq, 2000.0f),
+                   getF (ParamIDs::eqHmidGain, 0.0f),
+                   getF (ParamIDs::eqHighFreq, 8000.0f),
+                   getF (ParamIDs::eqHighGain, 0.0f));
+
     effects.setChorus (getB (ParamIDs::chorusOn, false),
                        getF (ParamIDs::chorusRate, 0.5f),
                        getF (ParamIDs::chorusDepth, 0.25f),
                        getF (ParamIDs::chorusMix, 0.5f));
+
+    // FASE 6.7: Phaser
+    effects.setPhaser (getB (ParamIDs::phaserOn, false),
+                       getF (ParamIDs::phaserRate, 0.5f),
+                       getF (ParamIDs::phaserDepth, 0.5f),
+                       getF (ParamIDs::phaserFeedback, 0.5f),
+                       getF (ParamIDs::phaserMix, 0.5f));
 
     {
         const int syncIdx = getI (ParamIDs::delaySync, 0);
@@ -123,7 +151,7 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
 
     effects.process (buffer);
 
-    // Medir el pico de salida (para el VU meter)
+    // VU meter
     {
         float peak = 0.0f;
         for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
