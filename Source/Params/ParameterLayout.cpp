@@ -55,14 +55,12 @@ namespace Params
             "1/4T", "1/8T", "1/16T", "1/4.", "1/8."
         };
 
-        // FASE 6.5: "Envelope 3" añadido al FINAL para no romper presets previos.
         const juce::StringArray modSources {
             "None", "LFO 1", "LFO 2", "Envelope 1", "Envelope 2",
             "Velocity", "Mod Wheel", "Aftertouch", "Note Number", "Random",
             "Envelope 3"
         };
 
-        // FASE 6.5: "Filter Reso" y "OSC2 Fine" añadidos al FINAL.
         const juce::StringArray modDests {
             "None", "OSC1 Pitch", "OSC2 Pitch", "OSC1 Wave Pos", "OSC2 Wave Pos",
             "Filter Cutoff", "Amplifier", "Filter Reso", "OSC2 Fine"
@@ -103,7 +101,7 @@ namespace Params
         makeFloat (ParamIDs::filtSustain, "Filt Sustain", 0.0f,   1.0f, 0.500f);
         makeFloat (ParamIDs::filtRelease, "Filt Release", 0.001f, 10.0f, 0.300f, "s");
 
-        // ============ FASE 6.5: Envelope 3 (libre) ============
+        // ============ Envelope 3 (libre) ============
         makeFloat (ParamIDs::env3Attack,  "Env3 Attack",  0.001f, 5.0f, 0.005f, "s");
         makeFloat (ParamIDs::env3Decay,   "Env3 Decay",   0.001f, 5.0f, 0.200f, "s");
         makeFloat (ParamIDs::env3Sustain, "Env3 Sustain", 0.0f,   1.0f, 0.500f);
@@ -164,6 +162,24 @@ namespace Params
         makeFloat (ParamIDs::reverbSize, "Reverb Size", 0.0f, 1.0f, 0.6f);
         makeFloat (ParamIDs::reverbDamp, "Reverb Damp", 0.0f, 1.0f, 0.5f);
         makeFloat (ParamIDs::reverbMix,  "Reverb Mix",  0.0f, 1.0f, 0.3f);
+
+        // ============ FASE 6.7: EQ 4 bandas ============
+        makeBool     (ParamIDs::eqOn,       "EQ On",       true);
+        makeFloatLog (ParamIDs::eqLowFreq,  "EQ Low Freq",  30.0f, 500.0f,  100.0f,  "Hz");
+        makeFloat    (ParamIDs::eqLowGain,  "EQ Low Gain", -18.0f, 18.0f,   0.0f,   "dB");
+        makeFloatLog (ParamIDs::eqLmidFreq, "EQ LMid Freq", 100.0f, 2000.0f, 500.0f,  "Hz");
+        makeFloat    (ParamIDs::eqLmidGain, "EQ LMid Gain",-18.0f, 18.0f,   0.0f,   "dB");
+        makeFloatLog (ParamIDs::eqHmidFreq, "EQ HMid Freq", 1000.0f, 8000.0f, 2000.0f,"Hz");
+        makeFloat    (ParamIDs::eqHmidGain, "EQ HMid Gain",-18.0f, 18.0f,   0.0f,   "dB");
+        makeFloatLog (ParamIDs::eqHighFreq, "EQ High Freq", 2000.0f, 20000.0f,8000.0f,"Hz");
+        makeFloat    (ParamIDs::eqHighGain, "EQ High Gain",-18.0f, 18.0f,   0.0f,   "dB");
+
+        // ============ FASE 6.7: Phaser ============
+        makeBool  (ParamIDs::phaserOn,       "Phaser On",       false);
+        makeFloat (ParamIDs::phaserRate,     "Phaser Rate",     0.05f, 5.0f, 0.5f, "Hz");
+        makeFloat (ParamIDs::phaserDepth,    "Phaser Depth",    0.0f,  1.0f, 0.5f);
+        makeFloat (ParamIDs::phaserFeedback, "Phaser Feedbk",   0.0f,  0.95f, 0.5f);
+        makeFloat (ParamIDs::phaserMix,      "Phaser Mix",      0.0f,  1.0f, 0.5f);
 
         return { params.begin(), params.end() };
     }
