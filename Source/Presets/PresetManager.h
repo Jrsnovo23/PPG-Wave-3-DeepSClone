@@ -35,13 +35,31 @@ namespace presets
 
         juce::File getUserPresetDirectory() const;
 
+        // ===== SISTEMA DE FAVORITOS =====
+        bool isFavorite (const juce::String& presetName) const;
+        void toggleFavorite (const juce::String& presetName);
+
+        bool isFavoritesOnly() const { return favoritesOnly; }
+        void setFavoritesOnly (bool v) { favoritesOnly = v; }
+
+        // FASE 7: obtener índices favoritos para el menú popup.
+        juce::Array<int> getFavoriteIndices() const;
+
     private:
         void applyPreset (const juce::var& preset);
         juce::var captureCurrentState() const;
         void loadFactoryPresets();
 
+        void loadFavorites();
+        void saveFavorites();
+        juce::File getFavoritesFile() const;
+
         juce::AudioProcessorValueTreeState& apvts;
         juce::Array<PresetInfo> allPresets;
         int currentIndex = 0;
+
+        // ===== FAVORITOS =====
+        juce::StringArray favorites;
+        bool favoritesOnly = false;
     };
 }
