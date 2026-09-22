@@ -299,7 +299,7 @@ void PPGWave3Editor::ToggleButton::resized()
 
 void PPGWave3Editor::ToggleButton::paint (juce::Graphics&) {}
 
-// ==================== EQBandKnob (FASE 6.7) ====================
+// ==================== EQBandKnob ====================
 
 PPGWave3Editor::EQBandKnob::EQBandKnob (juce::AudioProcessorValueTreeState& state,
                                         const juce::StringArray& paramIdsForBands,
@@ -315,10 +315,6 @@ PPGWave3Editor::EQBandKnob::EQBandKnob (juce::AudioProcessorValueTreeState& stat
     slider.setColour (juce::Slider::rotarySliderFillColourId,    juce::Colour (0xffffaa00));
     slider.setColour (juce::Slider::rotarySliderOutlineColourId, juce::Colour (0xff333333));
     slider.setColour (juce::Slider::thumbColourId,               juce::Colour (0xffffcc55));
-
-    // El slider trabaja SIEMPRE en 0..1 (normalizado). Así funciona con
-    // cualquier rango (incluso -18..+18 del Gain). La conversión al valor
-    // real la hace el propio parámetro.
     slider.setRange (0.0, 1.0, 0.0001);
 
     slider.onValueChange = [this]() { sliderChanged(); };
@@ -394,12 +390,9 @@ void PPGWave3Editor::EQBandKnob::updateInfoText()
     auto* param = apvtsRef.getParameter (id);
     if (param == nullptr) return;
 
-    if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param))
-    {
-        const float norm = param->getValue();
-        const float real = ranged->getNormalisableRange().convertFrom0to1 (norm);
-        infoDisplay->setInfo (paramName, param->getText (real, 8));
-    }
+    // FASE 6.6 fix: getText() espera un valor NORMALIZADO (0..1).
+    // getCurrentValueAsText() hace la conversión correcta.
+    infoDisplay->setInfo (paramName, param->getCurrentValueAsText());
 }
 
 void PPGWave3Editor::EQBandKnob::timerCallback()
@@ -418,7 +411,7 @@ void PPGWave3Editor::EQBandKnob::timerCallback()
     }
 }
 
-// ==================== EQCurveDisplay (FASE 6.7) ====================
+// ==================== EQCurveDisplay ====================
 
 PPGWave3Editor::EQCurveDisplay::EQCurveDisplay (juce::AudioProcessorValueTreeState& apvts)
     : apvtsRef (apvts)
@@ -503,7 +496,6 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
     hasCached = true;
     cached = c;
 
-    // Fondo
     g.setColour (juce::Colour (0xff0a0a0a));
     g.fillRoundedRectangle (r, 3.0f);
     g.setColour (juce::Colour (0xff2f2f2f));
@@ -514,7 +506,6 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
     const float fMax = 20000.0f;
     const float dbRange = 24.0f;
 
-    // Frecuencias guía: 100, 1k, 10k
     const float guides[] = { 100.0f, 1000.0f, 10000.0f };
     for (float f : guides)
     {
@@ -533,12 +524,10 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
                     juce::Justification::centred);
     }
 
-    // Línea 0 dB
     const float midY = r.getCentreY();
     g.setColour (juce::Colour (0xff333333));
     g.drawHorizontalLine ((int) midY, r.getX() + 2.0f, r.getRight() - 2.0f);
 
-    // Línea +12 / -12 dB
     for (float db : { -12.0f, 12.0f })
     {
         const float y = midY - (db / dbRange) * (r.getHeight() * 0.45f);
@@ -548,8 +537,6 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
 
     if (! c.on) return;
 
-    // Coeficientes (evaluamos respuesta en frecuencia con JUCE).
-    // Los "Q" los limitamos igual que en el motor.
     const float lowQ  = juce::jlimit (0.1f, 10.0f, c.lowQ);
     const float lmidQ = juce::jlimit (0.1f, 10.0f, c.lmidQ);
     const float hmidQ = juce::jlimit (0.1f, 10.0f, c.hmidQ);
@@ -597,7 +584,6 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
         else        path.lineTo (x, y);
     }
 
-    // Relleno suave bajo la curva
     juce::Path filled = path;
     filled.lineTo (r.getRight(), midY);
     filled.lineTo (r.getX(),     midY);
@@ -605,13 +591,11 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xffffaa00).withAlpha (0.12f));
     g.fillPath (filled);
 
-    // Contorno
     g.setColour (juce::Colour (0xffffaa00).withAlpha (0.35f));
     g.strokePath (path, juce::PathStrokeType (3.0f));
     g.setColour (juce::Colour (0xffffcc55));
     g.strokePath (path, juce::PathStrokeType (1.5f));
 
-    // Puntos guía en cada banda (pequeños círculos).
     struct Marker { float freq; float gain; };
     const Marker markers[] = {
         { c.lowF,  c.lowG  },
@@ -728,7 +712,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       reverbSize (p.apvts, ParamIDs::reverbSize, "SIZE", &fxInfo),
       reverbDamp (p.apvts, ParamIDs::reverbDamp, "DAMP", &fxInfo),
       reverbMix  (p.apvts, ParamIDs::reverbMix,  "MIX",  &fxInfo),
-      // ===== FASE 6.7: EQ =====
       eqOn   (std::make_unique<ToggleButton> (p.apvts, ParamIDs::eqOn,   "EQ", &fxInfo)),
       eqHpOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::eqHpOn, "HP", &fxInfo)),
       eqLpOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::eqLpOn, "LP", &fxInfo)),
@@ -745,7 +728,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
                     ParamIDs::eqHmidGain, ParamIDs::eqHighGain },
                   "GAIN", &fxInfo),
       eqCurveDisplay (p.apvts),
-      // ===== FASE 6.7: Phaser =====
       phaserOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::phaserOn, "PHASER", &fxInfo)),
       phaserRate     (p.apvts, ParamIDs::phaserRate,     "RATE",  &fxInfo),
       phaserDepth    (p.apvts, ParamIDs::phaserDepth,    "DEPTH", &fxInfo),
@@ -755,7 +737,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
 {
     juce::ignoreUnused (processorRef, apvts);
 
-    // === Preset bar ===
     prevBtn.setConnectedEdges (juce::Button::ConnectedOnRight);
     nextBtn.setConnectedEdges (juce::Button::ConnectedOnLeft);
     prevBtn.onClick = [this]() { onPrevPreset(); };
@@ -770,7 +751,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     addAndMakeVisible (presetDisplay);
     updatePresetDisplay();
 
-    // === FX tabs ===
     for (auto* b : { &driveTabBtn, &chorusTabBtn, &delayTabBtn,
                      &reverbTabBtn, &eqTabBtn, &phaserTabBtn })
     {
@@ -796,7 +776,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     eqTabBtn    .onClick = [this]() { activeFxTab = 4; updateFxVisibility(); repaint(); };
     phaserTabBtn.onClick = [this]() { activeFxTab = 5; updateFxVisibility(); repaint(); };
 
-    // === Env tabs ===
     for (auto* b : { &env1TabBtn, &env2TabBtn, &env3TabBtn })
     {
         b->setClickingTogglesState (false);
@@ -815,7 +794,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     env2TabBtn.onClick = [this]() { activeEnvTab = 1; updateEnvVisibility(); repaint(); };
     env3TabBtn.onClick = [this]() { activeEnvTab = 2; updateEnvVisibility(); repaint(); };
 
-    // === FASE 6.7: Botones de banda del EQ ===
     for (auto* b : { &eqLowBtn, &eqLmidBtn, &eqHmidBtn, &eqHighBtn })
     {
         b->setClickingTogglesState (true);
@@ -837,10 +815,8 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     eqHighBtn.onClick = [this]() { setActiveEqBand (3); };
 
     setActiveEqBand (0);
-
     addAndMakeVisible (eqCurveDisplay);
 
-    // === Teclado virtual ===
     keyboardComponent.setAvailableRange (36, 96);
     keyboardComponent.setLowestVisibleKey (36);
     keyboardComponent.setKeyWidth (20.0f);
@@ -861,7 +837,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
                                  juce::Colour (0xff444444));
     addAndMakeVisible (keyboardComponent);
 
-    // === Pitch wheel ===
     pitchWheelSlider.setSliderStyle (juce::Slider::LinearVertical);
     pitchWheelSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     pitchWheelSlider.setRange (-1.0, 1.0, 0.001);
@@ -885,7 +860,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     pitchWheelLabel.setFont (juce::FontOptions (9.0f, juce::Font::bold));
     addAndMakeVisible (pitchWheelLabel);
 
-    // === Mod wheel ===
     modWheelSlider.setSliderStyle (juce::Slider::LinearVertical);
     modWheelSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     modWheelSlider.setRange (0.0, 1.0, 0.001);
@@ -905,7 +879,6 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     modWheelLabel.setFont (juce::FontOptions (9.0f, juce::Font::bold));
     addAndMakeVisible (modWheelLabel);
 
-    // === Visualizadores ===
     addAndMakeVisible (osc1Preview);
     addAndMakeVisible (osc2Preview);
     addAndMakeVisible (lfo1Display);
@@ -1026,12 +999,10 @@ void PPGWave3Editor::updateFxVisibility()
     eqOn   ->setVisible (eq);
     eqHpOn ->setVisible (eq);
     eqLpOn ->setVisible (eq);
-
     eqLowBtn .setVisible (eq);
     eqLmidBtn.setVisible (eq);
     eqHmidBtn.setVisible (eq);
     eqHighBtn.setVisible (eq);
-
     eqFreqKnob.setVisible (eq);
     eqQKnob   .setVisible (eq);
     eqGainKnob.setVisible (eq);
@@ -1448,7 +1419,6 @@ void PPGWave3Editor::resized()
         innerOut.removeFromTop (1);
     };
 
-    // -------- Osciladores --------
     auto layoutOscSection = [&] (juce::Rectangle<int> area,
                                  InfoDisplay& info, ButtonSelector& waveSel,
                                  ui::WavetablePreview& preview,
@@ -1478,7 +1448,6 @@ void PPGWave3Editor::resized()
     layoutOscSection (osc2Area, osc2Info, *osc2Wave, osc2Preview,
                       osc2Pos, osc2Oct, osc2Semi, osc2Fine, osc2Level);
 
-    // -------- Filtro --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (filterArea, filterInfo, inner);
@@ -1492,7 +1461,6 @@ void PPGWave3Editor::resized()
         filterKeyTrack.setBounds (inner.reduced (1, 0));
     }
 
-    // -------- LFO --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (lfoArea, lfoInfo, inner);
@@ -1527,7 +1495,6 @@ void PPGWave3Editor::resized()
                    lfo2Rate, lfo2Depth, lfo2Phase);
     }
 
-    // -------- Mod Matrix --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (modArea, modInfo, inner);
@@ -1549,7 +1516,6 @@ void PPGWave3Editor::resized()
         layoutRow (inner,                        *mod4Src, *mod4Dst, mod4Amt);
     }
 
-    // -------- Effects con tabs --------
     {
         juce::Rectangle<int> inner;
         titleRowFor (fxArea, fxInfo, inner);
@@ -1600,9 +1566,7 @@ void PPGWave3Editor::resized()
         }
         { auto area = controlsArea; layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix); }
 
-        // --- FASE 6.7: EQ layout con curva ---
-        // Fila superior: [EQ ON] [LOW][LMID][HMID][HIGH] [HP][LP]
-        // Fila inferior: [CURVA] (izquierda) + [FREQ][Q][GAIN] (derecha)
+        // EQ
         {
             auto area = controlsArea;
 
@@ -1626,7 +1590,6 @@ void PPGWave3Editor::resized()
             eqHpOn->setBounds (topRow.removeFromLeft (hpLpW).reduced (2, 2));
             eqLpOn->setBounds (topRow.removeFromLeft (hpLpW).reduced (2, 2));
 
-            // Fila inferior: la curva ocupa ~60%, los 3 knobs ~40%
             auto bottomRow = area;
 
             const int knobZoneW = (int) ((float) bottomRow.getWidth() * 0.40f);
@@ -1642,7 +1605,7 @@ void PPGWave3Editor::resized()
             eqGainKnob.setBounds (knobZone.reduced (4, 0));
         }
 
-        // --- FASE 6.7: Phaser ---
+        // Phaser
         {
             auto area = controlsArea;
             auto toggleArea = area.removeFromLeft (110);
@@ -1657,7 +1620,7 @@ void PPGWave3Editor::resized()
         }
     }
 
-    // -------- Envelopes con tabs --------
+    // Envelopes
     {
         juce::Rectangle<int> inner;
         titleRowFor (envArea, envInfo, inner);
@@ -1696,7 +1659,7 @@ void PPGWave3Editor::resized()
         layoutKnobRow (env3A, env3D, env3S, env3R);
     }
 
-    // -------- Master --------
+    // Master
     {
         auto inner = masterArea.reduced (8);
         auto titleRow = inner.removeFromTop (
