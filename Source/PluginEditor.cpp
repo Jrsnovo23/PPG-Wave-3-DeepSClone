@@ -316,11 +316,12 @@ PPGWave3Editor::EQBandKnob::EQBandKnob (juce::AudioProcessorValueTreeState& stat
     slider.setColour (juce::Slider::rotarySliderOutlineColourId, juce::Colour (0xff333333));
     slider.setColour (juce::Slider::thumbColourId,               juce::Colour (0xffffcc55));
 
-    // Rango temporal: lo ajustamos según el parámetro activo en refreshSliderFromParam.
+    // El slider trabaja SIEMPRE en 0..1 (normalizado). Así funciona con
+    // cualquier rango (incluso -18..+18 del Gain). La conversión al valor
+    // real la hace el propio parámetro.
     slider.setRange (0.0, 1.0, 0.0001);
 
     slider.onValueChange = [this]() { sliderChanged(); };
-
     addAndMakeVisible (slider);
 
     label.setText (labelText, juce::dontSendNotification);
@@ -366,33 +367,11 @@ void PPGWave3Editor::EQBandKnob::refreshSliderFromParam()
     auto* param = apvtsRef.getParameter (id);
     if (param == nullptr) return;
 
-    if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param))
-    {
-        const auto& range = ranged->getNormalisableRange();
-        slider.setRange (range.start, range.end, range.interval > 0.0f
-                                                       ? range.interval
-                                                       : 0.0001);
-
-        // Si el rango es muy amplio, aplicamos skew para que sea cómodo.
-        // (Se pierde la simetría log original del parámetro, pero para
-        //  el EQ es aceptable y mucho más simple.)
-        if (range.end / juce::jmax (0.001f, range.start) > 100.0f)
-        {
-            auto skewed = juce::NormalisableRange<double> (range.start, range.end);
-            skewed.setSkewForCentre (std::sqrt ((double) range.start * (double) range.end));
-            slider.setNormalisableRange (skewed);
-        }
-        else
-        {
-            slider.setNormalisableRange (juce::NormalisableRange<double> (
-                range.start, range.end));
-        }
-    }
-
     updatingFromParam = true;
-    if (auto* raw = apvtsRef.getRawParameterValue (id))
-        slider.setValue (raw->load(), juce::dontSendNotification);
+    slider.setValue (param->getValue(), juce::dontSendNotification);
     updatingFromParam = false;
+
+    updateInfoText();
 }
 
 void PPGWave3Editor::EQBandKnob::sliderChanged()
@@ -403,29 +382,254 @@ void PPGWave3Editor::EQBandKnob::sliderChanged()
     auto* param = apvtsRef.getParameter (id);
     if (param == nullptr) return;
 
+    param->setValueNotifyingHost ((float) slider.getValue());
+    updateInfoText();
+}
+
+void PPGWave3Editor::EQBandKnob::updateInfoText()
+{
+    if (infoDisplay == nullptr) return;
+
+    const auto id = ids[activeBand];
+    auto* param = apvtsRef.getParameter (id);
+    if (param == nullptr) return;
+
     if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param))
     {
-        const auto& range = ranged->getNormalisableRange();
-        const float normalized = range.convertTo0to1 ((float) slider.getValue());
-        param->setValueNotifyingHost (normalized);
-
-        if (infoDisplay != nullptr)
-            infoDisplay->setInfo (paramName, slider.getTextFromValue (slider.getValue()));
+        const float norm = param->getValue();
+        const float real = ranged->getNormalisableRange().convertFrom0to1 (norm);
+        infoDisplay->setInfo (paramName, param->getText (real, 8));
     }
 }
 
 void PPGWave3Editor::EQBandKnob::timerCallback()
 {
     const auto id = ids[activeBand];
-    if (auto* raw = apvtsRef.getRawParameterValue (id))
+    if (auto* param = apvtsRef.getParameter (id))
     {
-        const float real = raw->load();
-        if (std::abs (real - (float) slider.getValue()) > 0.0001f)
+        const float norm = param->getValue();
+        if (std::abs (norm - (float) slider.getValue()) > 0.0005f)
         {
             updatingFromParam = true;
-            slider.setValue (real, juce::dontSendNotification);
+            slider.setValue (norm, juce::dontSendNotification);
             updatingFromParam = false;
+            updateInfoText();
         }
+    }
+}
+
+// ==================== EQCurveDisplay (FASE 6.7) ====================
+
+PPGWave3Editor::EQCurveDisplay::EQCurveDisplay (juce::AudioProcessorValueTreeState& apvts)
+    : apvtsRef (apvts)
+{
+    startTimerHz (30);
+}
+
+PPGWave3Editor::EQCurveDisplay::~EQCurveDisplay()
+{
+    stopTimer();
+}
+
+PPGWave3Editor::EQCurveDisplay::Cache
+PPGWave3Editor::EQCurveDisplay::readParams() const
+{
+    Cache c;
+    auto getF = [&] (const char* id, float def) -> float
+    {
+        if (auto* p = apvtsRef.getRawParameterValue (id)) return p->load();
+        return def;
+    };
+    auto getB = [&] (const char* id, bool def) -> bool
+    {
+        if (auto* p = apvtsRef.getRawParameterValue (id)) return p->load() > 0.5f;
+        return def;
+    };
+
+    c.on   = getB (ParamIDs::eqOn,   true);
+    c.hpOn = getB (ParamIDs::eqHpOn, false);
+    c.lpOn = getB (ParamIDs::eqLpOn, false);
+
+    c.lowF  = getF (ParamIDs::eqLowFreq,  100.0f);
+    c.lowQ  = getF (ParamIDs::eqLowQ,     0.707f);
+    c.lowG  = getF (ParamIDs::eqLowGain,  0.0f);
+
+    c.lmidF = getF (ParamIDs::eqLmidFreq, 500.0f);
+    c.lmidQ = getF (ParamIDs::eqLmidQ,    0.707f);
+    c.lmidG = getF (ParamIDs::eqLmidGain, 0.0f);
+
+    c.hmidF = getF (ParamIDs::eqHmidFreq, 2000.0f);
+    c.hmidQ = getF (ParamIDs::eqHmidQ,    0.707f);
+    c.hmidG = getF (ParamIDs::eqHmidGain, 0.0f);
+
+    c.highF = getF (ParamIDs::eqHighFreq, 8000.0f);
+    c.highQ = getF (ParamIDs::eqHighQ,    0.707f);
+    c.highG = getF (ParamIDs::eqHighGain, 0.0f);
+
+    return c;
+}
+
+bool PPGWave3Editor::EQCurveDisplay::cacheChanged (const Cache& a, const Cache& b)
+{
+    const float eps = 0.001f;
+    return a.on != b.on || a.hpOn != b.hpOn || a.lpOn != b.lpOn
+        || std::abs (a.lowF  - b.lowF)  > eps || std::abs (a.lowQ  - b.lowQ)  > eps
+        || std::abs (a.lowG  - b.lowG)  > eps
+        || std::abs (a.lmidF - b.lmidF) > eps || std::abs (a.lmidQ - b.lmidQ) > eps
+        || std::abs (a.lmidG - b.lmidG) > eps
+        || std::abs (a.hmidF - b.hmidF) > eps || std::abs (a.hmidQ - b.hmidQ) > eps
+        || std::abs (a.hmidG - b.hmidG) > eps
+        || std::abs (a.highF - b.highF) > eps || std::abs (a.highQ - b.highQ) > eps
+        || std::abs (a.highG - b.highG) > eps;
+}
+
+void PPGWave3Editor::EQCurveDisplay::timerCallback()
+{
+    const auto now = readParams();
+    if (! hasCached || cacheChanged (now, cached))
+    {
+        cached = now;
+        hasCached = true;
+        repaint();
+    }
+}
+
+void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat();
+    if (r.getWidth() < 10.0f || r.getHeight() < 10.0f) return;
+
+    const auto c = hasCached ? cached : readParams();
+    hasCached = true;
+    cached = c;
+
+    // Fondo
+    g.setColour (juce::Colour (0xff0a0a0a));
+    g.fillRoundedRectangle (r, 3.0f);
+    g.setColour (juce::Colour (0xff2f2f2f));
+    g.drawRoundedRectangle (r.reduced (0.5f), 3.0f, 1.0f);
+
+    const float sr = 44100.0f;
+    const float fMin = 20.0f;
+    const float fMax = 20000.0f;
+    const float dbRange = 24.0f;
+
+    // Frecuencias guía: 100, 1k, 10k
+    const float guides[] = { 100.0f, 1000.0f, 10000.0f };
+    for (float f : guides)
+    {
+        const float t = std::log (f / fMin) / std::log (fMax / fMin);
+        const float x = r.getX() + t * r.getWidth();
+
+        g.setColour (juce::Colour (0xff222222));
+        g.drawVerticalLine ((int) x, r.getY() + 2.0f, r.getBottom() - 2.0f);
+
+        g.setColour (juce::Colour (0xff555555));
+        g.setFont (juce::FontOptions (7.0f));
+        const juce::String label = (f >= 1000.0f)
+            ? juce::String ((int) (f / 1000.0f)) + "k"
+            : juce::String ((int) f);
+        g.drawText (label, (int) x - 12, (int) r.getBottom() - 10, 24, 10,
+                    juce::Justification::centred);
+    }
+
+    // Línea 0 dB
+    const float midY = r.getCentreY();
+    g.setColour (juce::Colour (0xff333333));
+    g.drawHorizontalLine ((int) midY, r.getX() + 2.0f, r.getRight() - 2.0f);
+
+    // Línea +12 / -12 dB
+    for (float db : { -12.0f, 12.0f })
+    {
+        const float y = midY - (db / dbRange) * (r.getHeight() * 0.45f);
+        g.setColour (juce::Colour (0xff1e1e1e));
+        g.drawHorizontalLine ((int) y, r.getX() + 2.0f, r.getRight() - 2.0f);
+    }
+
+    if (! c.on) return;
+
+    // Coeficientes (evaluamos respuesta en frecuencia con JUCE).
+    // Los "Q" los limitamos igual que en el motor.
+    const float lowQ  = juce::jlimit (0.1f, 10.0f, c.lowQ);
+    const float lmidQ = juce::jlimit (0.1f, 10.0f, c.lmidQ);
+    const float hmidQ = juce::jlimit (0.1f, 10.0f, c.hmidQ);
+    const float highQ = juce::jlimit (0.1f, 10.0f, c.highQ);
+
+    const float lowGainLin  = juce::Decibels::decibelsToGain (c.lowG);
+    const float lmidGainLin = juce::Decibels::decibelsToGain (c.lmidG);
+    const float hmidGainLin = juce::Decibels::decibelsToGain (c.hmidG);
+    const float highGainLin = juce::Decibels::decibelsToGain (c.highG);
+
+    auto lowCoeffs  = juce::dsp::IIR::Coefficients<float>::makeLowShelf (
+        sr, c.lowF, lowQ, lowGainLin);
+    auto lmidCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter (
+        sr, c.lmidF, lmidQ, lmidGainLin);
+    auto hmidCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter (
+        sr, c.hmidF, hmidQ, hmidGainLin);
+    auto highCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighShelf (
+        sr, c.highF, highQ, highGainLin);
+    auto hpCoeffs   = juce::dsp::IIR::Coefficients<float>::makeHighPass (
+        sr, c.lowF, 0.707f);
+    auto lpCoeffs   = juce::dsp::IIR::Coefficients<float>::makeLowPass (
+        sr, c.highF, 0.707f);
+
+    constexpr int numPoints = 128;
+    juce::Path path;
+    for (int i = 0; i < numPoints; ++i)
+    {
+        const float t = (float) i / (float) (numPoints - 1);
+        const float freq = fMin * std::pow (fMax / fMin, t);
+
+        double mag = 1.0;
+        mag *= lowCoeffs ->getMagnitudeForFrequency (freq, sr);
+        mag *= lmidCoeffs->getMagnitudeForFrequency (freq, sr);
+        mag *= hmidCoeffs->getMagnitudeForFrequency (freq, sr);
+        mag *= highCoeffs->getMagnitudeForFrequency (freq, sr);
+        if (c.hpOn) mag *= hpCoeffs->getMagnitudeForFrequency (freq, sr);
+        if (c.lpOn) mag *= lpCoeffs->getMagnitudeForFrequency (freq, sr);
+
+        const float db = juce::jlimit (-dbRange, dbRange,
+                                       juce::Decibels::gainToDecibels ((float) mag));
+        const float x = r.getX() + t * r.getWidth();
+        const float y = midY - (db / dbRange) * (r.getHeight() * 0.45f);
+
+        if (i == 0) path.startNewSubPath (x, y);
+        else        path.lineTo (x, y);
+    }
+
+    // Relleno suave bajo la curva
+    juce::Path filled = path;
+    filled.lineTo (r.getRight(), midY);
+    filled.lineTo (r.getX(),     midY);
+    filled.closeSubPath();
+    g.setColour (juce::Colour (0xffffaa00).withAlpha (0.12f));
+    g.fillPath (filled);
+
+    // Contorno
+    g.setColour (juce::Colour (0xffffaa00).withAlpha (0.35f));
+    g.strokePath (path, juce::PathStrokeType (3.0f));
+    g.setColour (juce::Colour (0xffffcc55));
+    g.strokePath (path, juce::PathStrokeType (1.5f));
+
+    // Puntos guía en cada banda (pequeños círculos).
+    struct Marker { float freq; float gain; };
+    const Marker markers[] = {
+        { c.lowF,  c.lowG  },
+        { c.lmidF, c.lmidG },
+        { c.hmidF, c.hmidG },
+        { c.highF, c.highG },
+    };
+    for (const auto& m : markers)
+    {
+        const float t = std::log (m.freq / fMin) / std::log (fMax / fMin);
+        const float x = r.getX() + juce::jlimit (0.0f, 1.0f, t) * r.getWidth();
+        const float y = midY - (juce::jlimit (-dbRange, dbRange, m.gain) / dbRange)
+                              * (r.getHeight() * 0.45f);
+
+        g.setColour (juce::Colour (0xffffcc55));
+        g.fillEllipse (x - 2.5f, y - 2.5f, 5.0f, 5.0f);
+        g.setColour (juce::Colour (0xff151515));
+        g.drawEllipse (x - 2.5f, y - 2.5f, 5.0f, 5.0f, 1.0f);
     }
 }
 
@@ -540,6 +744,7 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
                   { ParamIDs::eqLowGain, ParamIDs::eqLmidGain,
                     ParamIDs::eqHmidGain, ParamIDs::eqHighGain },
                   "GAIN", &fxInfo),
+      eqCurveDisplay (p.apvts),
       // ===== FASE 6.7: Phaser =====
       phaserOn (std::make_unique<ToggleButton> (p.apvts, ParamIDs::phaserOn, "PHASER", &fxInfo)),
       phaserRate     (p.apvts, ParamIDs::phaserRate,     "RATE",  &fxInfo),
@@ -631,7 +836,9 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     eqHmidBtn.onClick = [this]() { setActiveEqBand (2); };
     eqHighBtn.onClick = [this]() { setActiveEqBand (3); };
 
-    setActiveEqBand (0);   // default LOW
+    setActiveEqBand (0);
+
+    addAndMakeVisible (eqCurveDisplay);
 
     // === Teclado virtual ===
     keyboardComponent.setAvailableRange (36, 96);
@@ -828,6 +1035,7 @@ void PPGWave3Editor::updateFxVisibility()
     eqFreqKnob.setVisible (eq);
     eqQKnob   .setVisible (eq);
     eqGainKnob.setVisible (eq);
+    eqCurveDisplay.setVisible (eq);
 
     phaserOn      ->setVisible (ph);
     phaserRate    .setVisible (ph);
@@ -1152,7 +1360,6 @@ void PPGWave3Editor::resized()
 
     auto r = getLocalBounds();
 
-    // Header con logo + preset bar
     auto header = r.removeFromTop (72);
     auto presetRow = header.removeFromBottom (36).reduced (10, 4);
 
@@ -1173,7 +1380,6 @@ void PPGWave3Editor::resized()
 
     presetDisplay.setBounds (presetRow);
 
-    // Tira inferior para teclado + ruedas
     auto keyboardStrip = r.removeFromBottom (92);
     keyboardArea = keyboardStrip;
 
@@ -1195,7 +1401,6 @@ void PPGWave3Editor::resized()
     keyboardStrip.removeFromLeft (12);
     keyboardComponent.setBounds (keyboardStrip);
 
-    // Resto del layout
     r.reduce (6, 6);
 
     const int h      = r.getHeight();
@@ -1395,25 +1600,20 @@ void PPGWave3Editor::resized()
         }
         { auto area = controlsArea; layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix); }
 
-        // --- FASE 6.7: EQ nuevo layout ---
-        // Fila 1: EQ ON | [LOW][LMID][HMID][HIGH] | HP | LP
-        // Fila 2: [FREQ] [Q] [GAIN] (centrados)
+        // --- FASE 6.7: EQ layout con curva ---
+        // Fila superior: [EQ ON] [LOW][LMID][HMID][HIGH] [HP][LP]
+        // Fila inferior: [CURVA] (izquierda) + [FREQ][Q][GAIN] (derecha)
         {
             auto area = controlsArea;
 
-            // Reservamos ~46% para la fila 1 (botones) y el resto para los knobs.
-            const int buttonRowH = juce::jmax (26, area.getHeight() / 3);
-            auto topRow    = area.removeFromTop (buttonRowH);
+            const int topRowH = 26;
+            auto topRow = area.removeFromTop (topRowH);
             area.removeFromTop (4);
-            auto bottomRow = area;
 
-            // Fila 1: EQ ON + 4 botones de banda + HP/LP a la derecha.
             const int eqOnW = 70;
             eqOn->setBounds (topRow.removeFromLeft (eqOnW).reduced (2, 2));
-
             topRow.removeFromLeft (8);
 
-            // 4 botones de banda ocupan ~55% del resto
             const int bandW = (int) ((float) topRow.getWidth() * 0.55f / 4.0f);
             eqLowBtn .setBounds (topRow.removeFromLeft (bandW).reduced (2, 2));
             eqLmidBtn.setBounds (topRow.removeFromLeft (bandW).reduced (2, 2));
@@ -1422,20 +1622,24 @@ void PPGWave3Editor::resized()
 
             topRow.removeFromLeft (8);
 
-            // HP/LP toggles a la derecha
             const int hpLpW = juce::jmin (70, topRow.getWidth() / 2);
             eqHpOn->setBounds (topRow.removeFromLeft (hpLpW).reduced (2, 2));
             eqLpOn->setBounds (topRow.removeFromLeft (hpLpW).reduced (2, 2));
 
-            // Fila 2: 3 knobs centrados.
-            const int knobW = juce::jmin (120, bottomRow.getWidth() / 3);
-            const int totalW = knobW * 3;
-            const int leftPad = (bottomRow.getWidth() - totalW) / 2;
-            bottomRow.removeFromLeft (leftPad);
+            // Fila inferior: la curva ocupa ~60%, los 3 knobs ~40%
+            auto bottomRow = area;
 
-            eqFreqKnob.setBounds (bottomRow.removeFromLeft (knobW).reduced (4, 0));
-            eqQKnob   .setBounds (bottomRow.removeFromLeft (knobW).reduced (4, 0));
-            eqGainKnob.setBounds (bottomRow.reduced (4, 0));
+            const int knobZoneW = (int) ((float) bottomRow.getWidth() * 0.40f);
+            auto knobZone = bottomRow.removeFromRight (knobZoneW);
+            bottomRow.removeFromRight (6);
+            auto curveZone = bottomRow;
+
+            eqCurveDisplay.setBounds (curveZone.reduced (2, 0));
+
+            const int kw = knobZone.getWidth() / 3;
+            eqFreqKnob.setBounds (knobZone.removeFromLeft (kw).reduced (4, 0));
+            eqQKnob   .setBounds (knobZone.removeFromLeft (kw).reduced (4, 0));
+            eqGainKnob.setBounds (knobZone.reduced (4, 0));
         }
 
         // --- FASE 6.7: Phaser ---
