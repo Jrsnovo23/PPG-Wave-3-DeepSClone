@@ -86,7 +86,6 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         return def;
     };
 
-    // FASE 6.7: EQ
     effects.setEQ (getB (ParamIDs::eqOn,   true),
                    getB (ParamIDs::eqHpOn, false),
                    getB (ParamIDs::eqLpOn, false),
@@ -147,6 +146,13 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
                       getF (ParamIDs::driveAmount, 3.0f),
                       getF (ParamIDs::driveTone, 0.5f),
                       getF (ParamIDs::driveMix, 0.5f));
+
+    // ===== FASE 8: Vintage =====
+    effects.setVintage (getB (ParamIDs::vintageOn, false),
+                        getF (ParamIDs::vintageAmount, 0.5f),
+                        getF (ParamIDs::vintageBits,   12.0f),
+                        getF (ParamIDs::vintageSr,     1.0f),
+                        getF (ParamIDs::vintageNoise,  0.15f));
 
     effects.process (buffer);
 
