@@ -118,10 +118,6 @@ private:
         float            scale = 1.0f;
     };
 
-    // ===== FASE 6.7: knob dinámico para el EQ =====
-    // Apunta a uno de 4 parámetros (uno por banda) según la banda activa.
-    // Trabaja siempre en 0..1 normalizado para que no falle con rangos
-    // negativos (como el Gain -18..+18).
     class EQBandKnob : public juce::Component,
                        private juce::Timer
     {
@@ -131,12 +127,10 @@ private:
                     const juce::String& labelText,
                     InfoDisplay* display);
         ~EQBandKnob() override;
-
-        void setActiveBand (int band);   // 0..3
+        void setActiveBand (int band);
         void setScale (float s);
         void resized() override;
         void paint   (juce::Graphics&) override;
-
     private:
         void timerCallback() override;
         void sliderChanged();
@@ -154,7 +148,6 @@ private:
         float         scale = 1.0f;
     };
 
-    // ===== FASE 6.7: curva del EQ en tiempo real =====
     class EQCurveDisplay : public juce::Component,
                            private juce::Timer
     {
@@ -162,7 +155,6 @@ private:
         explicit EQCurveDisplay (juce::AudioProcessorValueTreeState& apvts);
         ~EQCurveDisplay() override;
         void paint (juce::Graphics&) override;
-
     private:
         void timerCallback() override;
         struct Cache
@@ -217,7 +209,6 @@ private:
 
     presets::PresetManager presetManager;
 
-    // === Preset bar ===
     juce::TextButton prevBtn, nextBtn;
     juce::TextButton loadBtn, saveBtn, browseBtn;
     PresetDisplay    presetDisplay;
@@ -227,7 +218,6 @@ private:
     InfoDisplay envInfo, masterInfo;
     InfoDisplay lfoInfo, modInfo, fxInfo;
 
-    // Osciladores
     std::unique_ptr<ButtonSelector> osc1Wave;
     ui::WavetablePreview osc1Preview;
     RotaryKnob osc1Pos, osc1Oct, osc1Semi, osc1Fine, osc1Level;
@@ -235,11 +225,9 @@ private:
     ui::WavetablePreview osc2Preview;
     RotaryKnob osc2Pos, osc2Oct, osc2Semi, osc2Fine, osc2Level;
 
-    // Filtro
     std::unique_ptr<ButtonSelector> filterType;
     RotaryKnob filterCutoff, filterReso, filterEnvAmt, filterKeyTrack;
 
-    // Envelopes con tabs
     ui::EnvelopeDisplay env1Display, env2Display, env3Display;
     RotaryKnob env1A, env1D, env1S, env1R;
     RotaryKnob env2A, env2D, env2S, env2R;
@@ -247,32 +235,29 @@ private:
     juce::TextButton env1TabBtn, env2TabBtn, env3TabBtn;
     int activeEnvTab = 0;
 
-    // Master
     RotaryKnob master;
     ui::LevelMeter masterMeter;
 
-    // LFO 1
     std::unique_ptr<ComboBoxSelector> lfo1Wave;
     ui::LFODisplay lfo1Display;
     RotaryKnob lfo1Rate, lfo1Depth, lfo1Phase;
     std::unique_ptr<ComboBoxSelector> lfo1Sync;
 
-    // LFO 2
     std::unique_ptr<ComboBoxSelector> lfo2Wave;
     ui::LFODisplay lfo2Display;
     RotaryKnob lfo2Rate, lfo2Depth, lfo2Phase;
     std::unique_ptr<ComboBoxSelector> lfo2Sync;
 
-    // Mod Matrix
     std::unique_ptr<ComboBoxSelector> mod1Src, mod1Dst;  HSlider mod1Amt;
     std::unique_ptr<ComboBoxSelector> mod2Src, mod2Dst;  HSlider mod2Amt;
     std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  HSlider mod3Amt;
     std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  HSlider mod4Amt;
 
-    // ===== FX — pestañas (6 tabs) =====
-    juce::TextButton driveTabBtn, chorusTabBtn, delayTabBtn, reverbTabBtn;
-    juce::TextButton eqTabBtn, phaserTabBtn;
+    // ===== FX — 7 tabs (FASE 8 añade VINTAGE) =====
+    juce::TextButton driveTabBtn, chorusTabBtn, phaserTabBtn;
+    juce::TextButton delayTabBtn, reverbTabBtn, eqTabBtn, vintageTabBtn;
     int activeFxTab = 0;
+    // 0=DIST, 1=CHORUS, 2=PHASER, 3=DELAY, 4=REVERB, 5=EQ, 6=VINTAGE
 
     // FX — Drive
     std::unique_ptr<ToggleButton> driveOn;
@@ -288,7 +273,7 @@ private:
     std::unique_ptr<ToggleButton> reverbOn;
     RotaryKnob reverbSize, reverbDamp, reverbMix;
 
-    // ===== FASE 6.7: FX — EQ =====
+    // FX — EQ
     std::unique_ptr<ToggleButton> eqOn;
     std::unique_ptr<ToggleButton> eqHpOn, eqLpOn;
     juce::TextButton eqLowBtn, eqLmidBtn, eqHmidBtn, eqHighBtn;
@@ -296,11 +281,15 @@ private:
     EQCurveDisplay eqCurveDisplay;
     int activeEqBand = 0;
 
-    // ===== FASE 6.7: FX — Phaser =====
+    // FX — Phaser
     std::unique_ptr<ToggleButton> phaserOn;
     RotaryKnob phaserRate, phaserDepth, phaserFeedback, phaserMix;
 
-    // ===== Teclado virtual + Pitch/Mod wheels =====
+    // ===== FASE 8: FX — Vintage =====
+    std::unique_ptr<ToggleButton> vintageOn;
+    RotaryKnob vintageAmount, vintageBits, vintageSr;
+    RotaryKnob vintageNoise, vintageDrift, vintageVar;
+
     juce::MidiKeyboardComponent keyboardComponent;
     juce::Slider pitchWheelSlider;
     juce::Slider modWheelSlider;
