@@ -203,9 +203,10 @@ private:
     std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  HSlider mod3Amt;
     std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  HSlider mod4Amt;
 
-    // FX — pestañas
+    // ===== FX — pestañas (FASE 6.7: 6 tabs) =====
     juce::TextButton driveTabBtn, chorusTabBtn, delayTabBtn, reverbTabBtn;
-    int activeFxTab = 0;
+    juce::TextButton eqTabBtn, phaserTabBtn;
+    int activeFxTab = 0;   // 0=Drive, 1=Chorus, 2=Delay, 3=Reverb, 4=EQ, 5=Phaser
 
     // FX — Drive
     std::unique_ptr<ToggleButton> driveOn;
@@ -221,7 +222,18 @@ private:
     std::unique_ptr<ToggleButton> reverbOn;
     RotaryKnob reverbSize, reverbDamp, reverbMix;
 
-    // ===== FASE 6.8: Teclado virtual + Pitch/Mod wheels =====
+    // ===== FASE 6.7: FX — EQ (4 bandas × Freq+Gain) =====
+    std::unique_ptr<ToggleButton> eqOn;
+    RotaryKnob eqLowFreq,  eqLowGain;
+    RotaryKnob eqLmidFreq, eqLmidGain;
+    RotaryKnob eqHmidFreq, eqHmidGain;
+    RotaryKnob eqHighFreq, eqHighGain;
+
+    // ===== FASE 6.7: FX — Phaser =====
+    std::unique_ptr<ToggleButton> phaserOn;
+    RotaryKnob phaserRate, phaserDepth, phaserFeedback, phaserMix;
+
+    // ===== Teclado virtual + Pitch/Mod wheels =====
     juce::MidiKeyboardComponent keyboardComponent;
     juce::Slider pitchWheelSlider;
     juce::Slider modWheelSlider;
