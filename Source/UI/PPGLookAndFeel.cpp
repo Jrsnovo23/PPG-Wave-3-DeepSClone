@@ -58,7 +58,6 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
         g.fillEllipse (centre.x - innerRadius, centre.y - innerRadius,
                        innerRadius * 2.0f, innerRadius * 2.0f);
 
-        // Sutil borde superior interno
         g.setColour (juce::Colour (0xff2a2a2a));
         g.drawEllipse (centre.x - innerRadius, centre.y - innerRadius,
                        innerRadius * 2.0f, innerRadius * 2.0f, 1.0f);
@@ -77,24 +76,63 @@ void PPGLookAndFeel::drawRotarySlider (juce::Graphics& g,
                   juce::AffineTransform::rotation (angle).translated (centre.x, centre.y));
 }
 
-// ============ LINEAR SLIDER (faders horizontales de la matriz) ============
+// ============ LINEAR SLIDER (soporta HORIZONTAL y VERTICAL) ============
 void PPGLookAndFeel::drawLinearSlider (juce::Graphics& g,
                                        int x, int y, int width, int height,
                                        float sliderPos, float minSliderPos, float maxSliderPos,
                                        juce::Slider::SliderStyle /*style*/,
-                                       juce::Slider& /*slider*/)
+                                       juce::Slider& slider)
 {
+    const bool isVertical = slider.isVertical();
+
+    if (isVertical)
+    {
+        // -------- VERTICAL (pitch / mod wheels) --------
+        const auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat();
+        const float trackX = bounds.getCentreX();
+        const float trackW = 4.0f;
+        const float thumbR = 6.0f;
+
+        // Track fondo
+        g.setColour (juce::Colour (0xff2a2a2a));
+        g.fillRoundedRectangle (trackX - trackW * 0.5f, bounds.getY(),
+                                trackW, bounds.getHeight(), 2.0f);
+
+        // Fill dorado: desde el thumb hasta el extremo "inferior" del track
+        const float bottomY = juce::jmax (minSliderPos, maxSliderPos);
+        const float topY    = juce::jmin (minSliderPos, maxSliderPos);
+
+        if (sliderPos >= topY && sliderPos <= bottomY)
+        {
+            const float fillTop = sliderPos;
+            const float fillH   = bottomY - sliderPos;
+            if (fillH > 0.0f)
+            {
+                g.setColour (accent());
+                g.fillRoundedRectangle (trackX - trackW * 0.5f, fillTop,
+                                        trackW, fillH, 2.0f);
+            }
+        }
+
+        // Thumb
+        g.setColour (accentBright());
+        g.fillEllipse (trackX - thumbR, sliderPos - thumbR, thumbR * 2.0f, thumbR * 2.0f);
+        g.setColour (juce::Colour (0xff151515));
+        g.drawEllipse (trackX - thumbR, sliderPos - thumbR, thumbR * 2.0f, thumbR * 2.0f, 1.0f);
+
+        return;
+    }
+
+    // -------- HORIZONTAL (faders de la matriz, etc.) --------
     const auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat();
     const float trackY    = bounds.getCentreY();
     const float trackH    = 4.0f;
     const float thumbR    = 6.0f;
 
-    // Track background
     g.setColour (juce::Colour (0xff2a2a2a));
     g.fillRoundedRectangle (bounds.getX(), trackY - trackH * 0.5f,
                             bounds.getWidth(), trackH, 2.0f);
 
-    // Track filled (dorado desde min hasta thumb)
     const float minX = juce::jmin (minSliderPos, maxSliderPos);
     const float maxX = juce::jmax (minSliderPos, maxSliderPos);
 
@@ -105,7 +143,6 @@ void PPGLookAndFeel::drawLinearSlider (juce::Graphics& g,
                                 sliderPos - minX, trackH, 2.0f);
     }
 
-    // Thumb
     g.setColour (accentBright());
     g.fillEllipse (sliderPos - thumbR, trackY - thumbR, thumbR * 2.0f, thumbR * 2.0f);
     g.setColour (juce::Colour (0xff151515));
@@ -177,7 +214,6 @@ void PPGLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height,
     g.setColour (box.hasKeyboardFocus (true) ? accent() : borderSoft());
     g.drawRoundedRectangle (bounds, 3.0f, 1.0f);
 
-    // Flecha dorada a la derecha
     const auto arrowArea = bounds.removeFromRight (16.0f).reduced (4.0f, 0.0f);
     juce::Path arrow;
     arrow.startNewSubPath (arrowArea.getX(), arrowArea.getCentreY() - 2.0f);
