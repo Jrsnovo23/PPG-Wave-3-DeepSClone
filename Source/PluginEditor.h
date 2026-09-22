@@ -175,11 +175,15 @@ private:
         float scale = 1.0f;
     };
 
+    // FASE 7: PresetDisplay ahora es clickable (abre el menú de presets).
     class PresetDisplay : public juce::Component
     {
     public:
         void setInfo (const juce::String& name, const juce::String& category, bool factory);
         void paint (juce::Graphics&) override;
+        void mouseDown (const juce::MouseEvent&) override;
+
+        std::function<void()> onOpenMenu;
     private:
         juce::String presetName { "Init Saw" };
         juce::String presetCategory { "Init" };
@@ -199,6 +203,11 @@ private:
     void  onSavePreset();
     void  onBrowsePreset();
 
+    // FASE 7: nuevos métodos
+    void  showPresetMenu();
+    void  onToggleFavorite();
+    void  onToggleFavoritesOnly();
+
     void  updateFxVisibility();
     void  updateEnvVisibility();
     void  setActiveEqBand (int band);
@@ -209,7 +218,10 @@ private:
 
     presets::PresetManager presetManager;
 
+    // === Preset bar ===
     juce::TextButton prevBtn, nextBtn;
+    juce::TextButton favoriteBtn;       // FASE 7: ★ toggle favorite
+    juce::TextButton favoritesOnlyBtn;  // FASE 7: FAV (solo favoritos)
     juce::TextButton loadBtn, saveBtn, browseBtn;
     PresetDisplay    presetDisplay;
     std::unique_ptr<juce::FileChooser> fileChooser;
@@ -253,11 +265,10 @@ private:
     std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  HSlider mod3Amt;
     std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  HSlider mod4Amt;
 
-    // ===== FX — 7 tabs (FASE 8 añade VINTAGE) =====
+    // FX — pestañas
     juce::TextButton driveTabBtn, chorusTabBtn, phaserTabBtn;
     juce::TextButton delayTabBtn, reverbTabBtn, eqTabBtn, vintageTabBtn;
     int activeFxTab = 0;
-    // 0=DIST, 1=CHORUS, 2=PHASER, 3=DELAY, 4=REVERB, 5=EQ, 6=VINTAGE
 
     // FX — Drive
     std::unique_ptr<ToggleButton> driveOn;
@@ -285,7 +296,7 @@ private:
     std::unique_ptr<ToggleButton> phaserOn;
     RotaryKnob phaserRate, phaserDepth, phaserFeedback, phaserMix;
 
-    // ===== FASE 8: FX — Vintage =====
+    // FX — Vintage
     std::unique_ptr<ToggleButton> vintageOn;
     RotaryKnob vintageAmount, vintageBits, vintageSr;
     RotaryKnob vintageNoise, vintageDrift, vintageVar;
