@@ -79,53 +79,44 @@ namespace ParamIDs
     inline constexpr auto mod4Amount = "mod4_amount";
 
     // ============ FASE 5: EFECTOS ============
-    // Drive
     inline constexpr auto driveOn     = "drive_on";
     inline constexpr auto driveAmount = "drive_amount";
     inline constexpr auto driveTone   = "drive_tone";
     inline constexpr auto driveMix    = "drive_mix";
 
-    // Chorus
     inline constexpr auto chorusOn    = "chorus_on";
     inline constexpr auto chorusRate  = "chorus_rate";
     inline constexpr auto chorusDepth = "chorus_depth";
     inline constexpr auto chorusMix   = "chorus_mix";
 
-    // Delay
     inline constexpr auto delayOn       = "delay_on";
     inline constexpr auto delaySync     = "delay_sync";
     inline constexpr auto delayTime     = "delay_time";
     inline constexpr auto delayFeedback = "delay_feedback";
     inline constexpr auto delayMix      = "delay_mix";
 
-    // Reverb
     inline constexpr auto reverbOn    = "reverb_on";
     inline constexpr auto reverbSize  = "reverb_size";
     inline constexpr auto reverbDamp  = "reverb_damp";
     inline constexpr auto reverbMix   = "reverb_mix";
 
     // ============ FASE 6.7: EQ 4 BANDAS ============
-    // On/Off global + HP/LP filters
     inline constexpr auto eqOn   = "eq_on";
     inline constexpr auto eqHpOn = "eq_hp_on";
     inline constexpr auto eqLpOn = "eq_lp_on";
 
-    // LOW band (low shelf)
     inline constexpr auto eqLowFreq = "eq_low_freq";
     inline constexpr auto eqLowQ    = "eq_low_q";
     inline constexpr auto eqLowGain = "eq_low_gain";
 
-    // LOW MID band (peak)
     inline constexpr auto eqLmidFreq = "eq_lmid_freq";
     inline constexpr auto eqLmidQ    = "eq_lmid_q";
     inline constexpr auto eqLmidGain = "eq_lmid_gain";
 
-    // HIGH MID band (peak)
     inline constexpr auto eqHmidFreq = "eq_hmid_freq";
     inline constexpr auto eqHmidQ    = "eq_hmid_q";
     inline constexpr auto eqHmidGain = "eq_hmid_gain";
 
-    // HIGH band (high shelf)
     inline constexpr auto eqHighFreq = "eq_high_freq";
     inline constexpr auto eqHighQ    = "eq_high_q";
     inline constexpr auto eqHighGain = "eq_high_gain";
@@ -136,4 +127,13 @@ namespace ParamIDs
     inline constexpr auto phaserDepth    = "phaser_depth";
     inline constexpr auto phaserFeedback = "phaser_feedback";
     inline constexpr auto phaserMix      = "phaser_mix";
+
+    // ============ FASE 8: VINTAGE CHARACTER ============
+    inline constexpr auto vintageOn     = "vintage_on";
+    inline constexpr auto vintageAmount = "vintage_amount";
+    inline constexpr auto vintageBits   = "vintage_bits";
+    inline constexpr auto vintageSr     = "vintage_sr";
+    inline constexpr auto vintageNoise  = "vintage_noise";
+    inline constexpr auto vintageDrift  = "vintage_drift";
+    inline constexpr auto vintageVar    = "vintage_var";
 }
