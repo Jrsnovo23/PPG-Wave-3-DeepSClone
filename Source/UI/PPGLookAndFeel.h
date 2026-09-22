@@ -44,6 +44,9 @@ public:
     juce::Font getComboBoxFont (juce::ComboBox&) override;
     juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override;
 
-    // FASE 6.6: fuente de los menús desplegables (popup de los ComboBox).
+    // FASE 6.6: fuente y alto de los menús desplegables (popup de ComboBox).
     juce::Font getPopupMenuFont() override;
+    void getIdealPopupMenuItemSize (const juce::String& text, bool isSeparator,
+                                    int standardMenuItemHeight,
+                                    int& idealWidth, int& idealHeight) override;
 };
