@@ -4,7 +4,7 @@
 namespace dsp
 {
     // Cadena de efectos globales aplicada post-mix.
-    // Orden: Drive -> Chorus -> Delay -> Reverb.
+    // Orden: EQ -> Drive -> Chorus -> Phaser -> Delay -> Reverb.
     class Effects
     {
     public:
@@ -18,13 +18,21 @@ namespace dsp
         void setReverb (bool on, float roomSize, float damping, float mix);
         void setDrive  (bool on, float drive, float tone, float mix);
 
+        // ===== FASE 6.7 =====
+        void setEQ     (bool on,
+                        float lowFreq,  float lowGain,
+                        float lmidFreq, float lmidGain,
+                        float hmidFreq, float hmidGain,
+                        float highFreq, float highGain);
+        void setPhaser (bool on, float rate, float depth, float feedback, float mix);
+
     private:
         double sr       = 44100.0;
         int    maxBlock = 512;
 
         // ---- Drive ----
         bool  driveOn      = false;
-        float driveAmount  = 1.0f;   // 1 = limpio, >1 = saturado
+        float driveAmount  = 1.0f;
         float driveTone    = 0.5f;
         float driveMix     = 0.0f;
         juce::dsp::IIR::Filter<float> toneL, toneR;
@@ -49,5 +57,23 @@ namespace dsp
         bool  reverbOn     = false;
         float reverbMix    = 0.3f;
         juce::Reverb reverb;
+
+        // ---- FASE 6.7: EQ 4 bandas (Low shelf, LMid peak, HMid peak, High shelf) ----
+        using EQChain = juce::dsp::ProcessorChain<
+            juce::dsp::IIR::Filter<float>,
+            juce::dsp::IIR::Filter<float>,
+            juce::dsp::IIR::Filter<float>,
+            juce::dsp::IIR::Filter<float>>;
+
+        bool  eqOn       = true;
+        float eqLowFreq  = 100.0f,  eqLowGain  = 0.0f;
+        float eqLmidFreq = 500.0f,  eqLmidGain = 0.0f;
+        float eqHmidFreq = 2000.0f, eqHmidGain = 0.0f;
+        float eqHighFreq = 8000.0f, eqHighGain = 0.0f;
+        EQChain eqL, eqR;
+
+        // ---- FASE 6.7: Phaser ----
+        bool  phaserOn     = false;
+        juce::dsp::Phaser<float> phaser;
     };
 }
