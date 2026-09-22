@@ -73,6 +73,12 @@ namespace dsp
         phaser.reset();
         phaser.setCentreFrequency (1000.0f);
 
+        // FASE 8
+        heldL = 0.0f;
+        heldR = 0.0f;
+        srCounter = 1.0f;
+        vintageRng.setSeed (0x5A17F00Du);
+
         driveBufferScratch.resize ((size_t) maxBlockSize);
     }
 
@@ -87,6 +93,11 @@ namespace dsp
         eqL.reset();
         eqR.reset();
         phaser.reset();
+
+        // FASE 8
+        heldL = 0.0f;
+        heldR = 0.0f;
+        srCounter = 1.0f;
     }
 
     void Effects::setChorus (bool on, float rate, float depth, float mix)
@@ -143,7 +154,6 @@ namespace dsp
         *toneR.coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sr, cutoff);
     }
 
-    // ==================== EQ ====================
     void Effects::setEQ (bool on,
                          bool hpOn, bool lpOn,
                          float lowFreq,  float lowQ,  float lowGain,
@@ -178,36 +188,40 @@ namespace dsp
 
         for (auto* chain : { &eqL, &eqR })
         {
-            // HP
             *chain->get<0>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (
                 sr, eqLowFreq, 0.707f);
-            // Low shelf: Q fijo (0.707)
             *chain->get<1>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowShelf (
                 sr, eqLowFreq, 0.707f, lowGainLin);
-            // LMid peak: Q ajustable
             *chain->get<2>().coefficients = *juce::dsp::IIR::Coefficients<float>::makePeakFilter (
                 sr, eqLmidFreq, clampedLmidQ, lmidGainLin);
-            // HMid peak: Q ajustable
             *chain->get<3>().coefficients = *juce::dsp::IIR::Coefficients<float>::makePeakFilter (
                 sr, eqHmidFreq, clampedHmidQ, hmidGainLin);
-            // High shelf: Q fijo (0.707)
             *chain->get<4>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (
                 sr, eqHighFreq, 0.707f, highGainLin);
-            // LP
             *chain->get<5>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (
                 sr, eqHighFreq, 0.707f);
         }
     }
 
-    // ==================== Phaser ====================
     void Effects::setPhaser (bool on, float rate, float depth, float feedback, float mix)
     {
         phaserOn = on;
-
         phaser.setRate     (juce::jlimit (0.01f, 10.0f, rate));
         phaser.setDepth    (juce::jlimit (0.0f, 1.0f, depth));
         phaser.setFeedback (juce::jlimit (0.0f, 0.95f, feedback));
         phaser.setMix      (juce::jlimit (0.0f, 1.0f, mix));
+    }
+
+    // ==================== FASE 8: Vintage ====================
+    void Effects::setVintage (bool on, float amount,
+                              float bits, float srFactor,
+                              float noise)
+    {
+        vintageOn     = on;
+        vintageAmount = juce::jlimit (0.0f, 1.0f, amount);
+        vintageBits   = juce::jlimit (4.0f, 16.0f, bits);
+        vintageSr     = juce::jlimit (1.0f, 32.0f, srFactor);
+        vintageNoise  = juce::jlimit (0.0f, 1.0f, noise);
     }
 
     void Effects::process (juce::AudioBuffer<float>& buffer)
@@ -281,26 +295,13 @@ namespace dsp
                 reverb.processMono (L, numSamples);
         }
 
-        // ---------- 6. EQ (al final) ----------
+        // ---------- 6. EQ ----------
         if (eqOn)
         {
-            auto processChainForChannel = [&] (float* data)
-            {
-                float* chans[] = { data };
-                juce::dsp::AudioBlock<float> b (chans, 1, 0, (size_t) numSamples);
-                juce::dsp::ProcessContextReplacing<float> ctx (b);
-
-                if (eqHpOn) eqL.get<0>().process (ctx);  // se sustituye abajo por canal real
-                // (esto se hace fuera por canal, ver más abajo)
-            };
-            juce::ignoreUnused (processChainForChannel);
-
-            // Canal L
             {
                 float* chansL[] = { L };
                 juce::dsp::AudioBlock<float> bL (chansL, 1, 0, (size_t) numSamples);
                 juce::dsp::ProcessContextReplacing<float> ctx (bL);
-
                 if (eqHpOn) eqL.get<0>().process (ctx);
                 eqL.get<1>().process (ctx);
                 eqL.get<2>().process (ctx);
@@ -308,20 +309,62 @@ namespace dsp
                 eqL.get<4>().process (ctx);
                 if (eqLpOn) eqL.get<5>().process (ctx);
             }
-
-            // Canal R
             if (R)
             {
                 float* chansR[] = { R };
                 juce::dsp::AudioBlock<float> bR (chansR, 1, 0, (size_t) numSamples);
                 juce::dsp::ProcessContextReplacing<float> ctx (bR);
-
                 if (eqHpOn) eqR.get<0>().process (ctx);
                 eqR.get<1>().process (ctx);
                 eqR.get<2>().process (ctx);
                 eqR.get<3>().process (ctx);
                 eqR.get<4>().process (ctx);
                 if (eqLpOn) eqR.get<5>().process (ctx);
+            }
+        }
+
+        // ---------- 7. FASE 8: VINTAGE (DAC emulation, al final) ----------
+        if (vintageOn && vintageAmount > 0.0f)
+        {
+            const float amt = vintageAmount;
+
+            // Interpolación: 16 bits en amt=0, vintageBits en amt=1
+            const float effBits = 16.0f - amt * (16.0f - vintageBits);
+            const float effSr   = 1.0f  + amt * (vintageSr - 1.0f);
+            const float effNoise = amt * vintageNoise;
+
+            const float levels    = std::pow (2.0f, effBits);
+            const float invLevels = 1.0f / levels;
+            const float srStep    = 1.0f / juce::jmax (1.0f, effSr);
+            const float noiseAmt  = effNoise * 0.02f;
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                // Sample & hold
+                srCounter += srStep;
+                if (srCounter >= 1.0f)
+                {
+                    heldL = L[i];
+                    if (R) heldR = R[i];
+                    srCounter -= 1.0f;
+                }
+
+                float sL = heldL;
+                float sR = R ? heldR : 0.0f;
+
+                // Bit reduction (DAC emulation)
+                sL = std::round (sL * levels) * invLevels;
+                if (R) sR = std::round (sR * levels) * invLevels;
+
+                // Digital noise
+                if (noiseAmt > 0.0f)
+                {
+                    sL += (vintageRng.nextFloat() * 2.0f - 1.0f) * noiseAmt;
+                    if (R) sR += (vintageRng.nextFloat() * 2.0f - 1.0f) * noiseAmt;
+                }
+
+                L[i] = sL;
+                if (R) R[i] = sR;
             }
         }
     }
