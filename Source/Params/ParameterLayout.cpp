@@ -164,15 +164,29 @@ namespace Params
         makeFloat (ParamIDs::reverbMix,  "Reverb Mix",  0.0f, 1.0f, 0.3f);
 
         // ============ FASE 6.7: EQ 4 bandas ============
-        makeBool     (ParamIDs::eqOn,       "EQ On",       true);
-        makeFloatLog (ParamIDs::eqLowFreq,  "EQ Low Freq",  30.0f, 500.0f,  100.0f,  "Hz");
-        makeFloat    (ParamIDs::eqLowGain,  "EQ Low Gain", -18.0f, 18.0f,   0.0f,   "dB");
-        makeFloatLog (ParamIDs::eqLmidFreq, "EQ LMid Freq", 100.0f, 2000.0f, 500.0f,  "Hz");
-        makeFloat    (ParamIDs::eqLmidGain, "EQ LMid Gain",-18.0f, 18.0f,   0.0f,   "dB");
-        makeFloatLog (ParamIDs::eqHmidFreq, "EQ HMid Freq", 1000.0f, 8000.0f, 2000.0f,"Hz");
-        makeFloat    (ParamIDs::eqHmidGain, "EQ HMid Gain",-18.0f, 18.0f,   0.0f,   "dB");
-        makeFloatLog (ParamIDs::eqHighFreq, "EQ High Freq", 2000.0f, 20000.0f,8000.0f,"Hz");
-        makeFloat    (ParamIDs::eqHighGain, "EQ High Gain",-18.0f, 18.0f,   0.0f,   "dB");
+        makeBool (ParamIDs::eqOn,   "EQ On",   true);
+        makeBool (ParamIDs::eqHpOn, "EQ HP On", false);
+        makeBool (ParamIDs::eqLpOn, "EQ LP On", false);
+
+        // LOW (shelf)
+        makeFloatLog (ParamIDs::eqLowFreq, "EQ Low Freq",  30.0f, 500.0f,   100.0f, "Hz");
+        makeFloat    (ParamIDs::eqLowQ,    "EQ Low Q",     0.1f,  10.0f,    0.707f);
+        makeFloat    (ParamIDs::eqLowGain, "EQ Low Gain", -18.0f, 18.0f,    0.0f, "dB");
+
+        // LOW MID (peak)
+        makeFloatLog (ParamIDs::eqLmidFreq, "EQ LMid Freq", 100.0f, 2000.0f, 500.0f, "Hz");
+        makeFloat    (ParamIDs::eqLmidQ,    "EQ LMid Q",    0.1f,  10.0f,    0.707f);
+        makeFloat    (ParamIDs::eqLmidGain, "EQ LMid Gain",-18.0f, 18.0f,    0.0f, "dB");
+
+        // HIGH MID (peak)
+        makeFloatLog (ParamIDs::eqHmidFreq, "EQ HMid Freq", 1000.0f, 8000.0f, 2000.0f, "Hz");
+        makeFloat    (ParamIDs::eqHmidQ,    "EQ HMid Q",    0.1f,  10.0f,    0.707f);
+        makeFloat    (ParamIDs::eqHmidGain, "EQ HMid Gain",-18.0f, 18.0f,    0.0f, "dB");
+
+        // HIGH (shelf)
+        makeFloatLog (ParamIDs::eqHighFreq, "EQ High Freq", 2000.0f, 20000.0f, 8000.0f, "Hz");
+        makeFloat    (ParamIDs::eqHighQ,    "EQ High Q",    0.1f,  10.0f,    0.707f);
+        makeFloat    (ParamIDs::eqHighGain, "EQ High Gain",-18.0f, 18.0f,    0.0f, "dB");
 
         // ============ FASE 6.7: Phaser ============
         makeBool  (ParamIDs::phaserOn,       "Phaser On",       false);
