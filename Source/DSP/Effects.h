@@ -4,7 +4,8 @@
 namespace dsp
 {
     // Cadena de efectos globales aplicada post-mix.
-    // Orden: EQ -> Drive -> Chorus -> Phaser -> Delay -> Reverb.
+    // Orden: EQ (HP -> LowShelf -> LMid -> HMid -> HighShelf -> LP)
+    //        -> Drive -> Chorus -> Phaser -> Delay -> Reverb.
     class Effects
     {
     public:
@@ -12,7 +13,6 @@ namespace dsp
         void reset();
         void process (juce::AudioBuffer<float>& buffer);
 
-        // Configuración antes de process(). Todos los "on" son booleanos.
         void setChorus (bool on, float rate, float depth, float mix);
         void setDelay  (bool on, float timeSec, float feedback, float mix);
         void setReverb (bool on, float roomSize, float damping, float mix);
@@ -20,10 +20,11 @@ namespace dsp
 
         // ===== FASE 6.7 =====
         void setEQ     (bool on,
-                        float lowFreq,  float lowGain,
-                        float lmidFreq, float lmidGain,
-                        float hmidFreq, float hmidGain,
-                        float highFreq, float highGain);
+                        bool hpOn, bool lpOn,
+                        float lowFreq,  float lowQ,  float lowGain,
+                        float lmidFreq, float lmidQ, float lmidGain,
+                        float hmidFreq, float hmidQ, float hmidGain,
+                        float highFreq, float highQ, float highGain);
         void setPhaser (bool on, float rate, float depth, float feedback, float mix);
 
     private:
@@ -45,7 +46,7 @@ namespace dsp
         float chorusMix    = 0.5f;
         juce::dsp::Chorus<float> chorus;
 
-        // ---- Delay (stereo con feedback manual) ----
+        // ---- Delay ----
         bool  delayOn      = false;
         float delayTimeSec = 0.3f;
         float delayFeedback= 0.4f;
@@ -58,18 +59,25 @@ namespace dsp
         float reverbMix    = 0.3f;
         juce::Reverb reverb;
 
-        // ---- FASE 6.7: EQ 4 bandas (Low shelf, LMid peak, HMid peak, High shelf) ----
+        // ---- FASE 6.7: EQ 4 bandas + HP/LP ----
+        // Chain: [0]=HP, [1]=LowShelf, [2]=LmidPeak, [3]=HmidPeak, [4]=HighShelf, [5]=LP
         using EQChain = juce::dsp::ProcessorChain<
+            juce::dsp::IIR::Filter<float>,
+            juce::dsp::IIR::Filter<float>,
             juce::dsp::IIR::Filter<float>,
             juce::dsp::IIR::Filter<float>,
             juce::dsp::IIR::Filter<float>,
             juce::dsp::IIR::Filter<float>>;
 
-        bool  eqOn       = true;
-        float eqLowFreq  = 100.0f,  eqLowGain  = 0.0f;
-        float eqLmidFreq = 500.0f,  eqLmidGain = 0.0f;
-        float eqHmidFreq = 2000.0f, eqHmidGain = 0.0f;
-        float eqHighFreq = 8000.0f, eqHighGain = 0.0f;
+        bool  eqOn   = true;
+        bool  eqHpOn = false;
+        bool  eqLpOn = false;
+
+        float eqLowFreq  = 100.0f,  eqLowQ  = 0.707f, eqLowGain  = 0.0f;
+        float eqLmidFreq = 500.0f,  eqLmidQ = 0.707f, eqLmidGain = 0.0f;
+        float eqHmidFreq = 2000.0f, eqHmidQ = 0.707f, eqHmidGain = 0.0f;
+        float eqHighFreq = 8000.0f, eqHighQ = 0.707f, eqHighGain = 0.0f;
+
         EQChain eqL, eqR;
 
         // ---- FASE 6.7: Phaser ----
