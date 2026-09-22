@@ -390,8 +390,6 @@ void PPGWave3Editor::EQBandKnob::updateInfoText()
     auto* param = apvtsRef.getParameter (id);
     if (param == nullptr) return;
 
-    // FASE 6.6 fix: getText() espera un valor NORMALIZADO (0..1).
-    // getCurrentValueAsText() hace la conversión correcta.
     infoDisplay->setInfo (paramName, param->getCurrentValueAsText());
 }
 
@@ -537,10 +535,9 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
 
     if (! c.on) return;
 
-    const float lowQ  = juce::jlimit (0.1f, 10.0f, c.lowQ);
+    // FASE 6.6: Q fijo en shelving (Low y High). Solo LMid y HMid usan Q ajustable.
     const float lmidQ = juce::jlimit (0.1f, 10.0f, c.lmidQ);
     const float hmidQ = juce::jlimit (0.1f, 10.0f, c.hmidQ);
-    const float highQ = juce::jlimit (0.1f, 10.0f, c.highQ);
 
     const float lowGainLin  = juce::Decibels::decibelsToGain (c.lowG);
     const float lmidGainLin = juce::Decibels::decibelsToGain (c.lmidG);
@@ -548,13 +545,13 @@ void PPGWave3Editor::EQCurveDisplay::paint (juce::Graphics& g)
     const float highGainLin = juce::Decibels::decibelsToGain (c.highG);
 
     auto lowCoeffs  = juce::dsp::IIR::Coefficients<float>::makeLowShelf (
-        sr, c.lowF, lowQ, lowGainLin);
+        sr, c.lowF, 0.707f, lowGainLin);
     auto lmidCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter (
         sr, c.lmidF, lmidQ, lmidGainLin);
     auto hmidCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter (
         sr, c.hmidF, hmidQ, hmidGainLin);
     auto highCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighShelf (
-        sr, c.highF, highQ, highGainLin);
+        sr, c.highF, 0.707f, highGainLin);
     auto hpCoeffs   = juce::dsp::IIR::Coefficients<float>::makeHighPass (
         sr, c.lowF, 0.707f);
     auto lpCoeffs   = juce::dsp::IIR::Coefficients<float>::makeLowPass (
@@ -957,6 +954,11 @@ void PPGWave3Editor::setActiveEqBand (int band)
     eqFreqKnob.setActiveBand (activeEqBand);
     eqQKnob   .setActiveBand (activeEqBand);
     eqGainKnob.setActiveBand (activeEqBand);
+
+    // FASE 6.6: la perilla Q solo aplica a las peak bands (LMid, HMid).
+    // En Low y High (shelving) se deshabilita.
+    const bool qApplicable = (activeEqBand == 1 || activeEqBand == 2);
+    eqQKnob.setEnabled (qApplicable);
 
     eqLowBtn .setToggleState (activeEqBand == 0, juce::dontSendNotification);
     eqLmidBtn.setToggleState (activeEqBand == 1, juce::dontSendNotification);
@@ -1620,7 +1622,6 @@ void PPGWave3Editor::resized()
         }
     }
 
-    // Envelopes
     {
         juce::Rectangle<int> inner;
         titleRowFor (envArea, envInfo, inner);
@@ -1659,7 +1660,6 @@ void PPGWave3Editor::resized()
         layoutKnobRow (env3A, env3D, env3S, env3R);
     }
 
-    // Master
     {
         auto inner = masterArea.reduced (8);
         auto titleRow = inner.removeFromTop (
