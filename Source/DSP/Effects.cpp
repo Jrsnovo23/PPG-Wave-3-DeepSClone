@@ -7,14 +7,17 @@ namespace dsp
         sr       = sampleRate;
         maxBlock = maxBlockSize;
 
+        // Drive
         toneL.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 1 });
         toneR.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 1 });
         toneL.reset();
         toneR.reset();
 
+        // Chorus
         chorus.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 2 });
         chorus.reset();
 
+        // Delay
         juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) maxBlockSize, 1 };
         delayL.prepare (spec);
         delayR.prepare (spec);
@@ -23,8 +26,10 @@ namespace dsp
         delayL.reset();
         delayR.reset();
 
+        // Reverb
         reverb.setSampleRate (sampleRate);
 
+        // EQ
         {
             juce::dsp::ProcessSpec monoSpec { sampleRate, (juce::uint32) maxBlockSize, 1 };
             eqL.prepare (monoSpec);
@@ -69,15 +74,23 @@ namespace dsp
             }
         }
 
+        // Phaser
         phaser.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 2 });
         phaser.reset();
         phaser.setCentreFrequency (1000.0f);
 
-        // FASE 8
+        // Vintage
         heldL = 0.0f;
         heldR = 0.0f;
         srCounter = 1.0f;
         vintageRng.setSeed (0x5A17F00Du);
+
+        // Compressor
+        compEnvelope    = 0.0f;
+        compLastAttack  = -1.0f;
+        compLastRelease = -1.0f;
+        compLastSr      = -1.0;
+        computeCompCoeffs();
 
         driveBufferScratch.resize ((size_t) maxBlockSize);
     }
@@ -94,11 +107,32 @@ namespace dsp
         eqR.reset();
         phaser.reset();
 
-        // FASE 8
         heldL = 0.0f;
         heldR = 0.0f;
         srCounter = 1.0f;
+
+        compEnvelope = 0.0f;
     }
+
+    void Effects::computeCompCoeffs()
+    {
+        if (sr <= 0.0) return;
+        if (compAttack == compLastAttack &&
+            compRelease == compLastRelease &&
+            sr == compLastSr) return;
+
+        const float attackSec  = juce::jmax (0.0001f, compAttack  * 0.001f);
+        const float releaseSec = juce::jmax (0.0001f, compRelease * 0.001f);
+
+        compAttackCoef  = std::exp (-1.0f / (attackSec  * (float) sr));
+        compReleaseCoef = std::exp (-1.0f / (releaseSec * (float) sr));
+
+        compLastAttack  = compAttack;
+        compLastRelease = compRelease;
+        compLastSr      = sr;
+    }
+
+    // ============ Setters ============
 
     void Effects::setChorus (bool on, float rate, float depth, float mix)
     {
@@ -212,7 +246,6 @@ namespace dsp
         phaser.setMix      (juce::jlimit (0.0f, 1.0f, mix));
     }
 
-    // ==================== FASE 8: Vintage ====================
     void Effects::setVintage (bool on, float amount,
                               float bits, float srFactor,
                               float noise)
@@ -224,7 +257,29 @@ namespace dsp
         vintageNoise  = juce::jlimit (0.0f, 1.0f, noise);
     }
 
-    void Effects::process (juce::AudioBuffer<float>& buffer)
+    void Effects::setCompressor (bool on,
+                                 float thresholdDb, float ratio,
+                                 float attackMs, float releaseMs,
+                                 float kneeDb, float makeupDb,
+                                 bool sidechainOn, float scAmount)
+    {
+        compOn        = on;
+        compThreshold = juce::jlimit (-60.0f, 0.0f,   thresholdDb);
+        compRatio     = juce::jlimit (1.0f,  20.0f,   ratio);
+        compAttack    = juce::jlimit (0.1f,  100.0f,  attackMs);
+        compRelease   = juce::jlimit (10.0f, 1000.0f, releaseMs);
+        compKnee      = juce::jlimit (0.0f,  24.0f,   kneeDb);
+        compMakeup    = juce::jlimit (0.0f,  24.0f,   makeupDb);
+        compSidechain = sidechainOn;
+        compScAmount  = juce::jlimit (0.0f,  1.0f,    scAmount);
+
+        computeCompCoeffs();
+    }
+
+    // ============ Procesado principal ============
+
+    void Effects::process (juce::AudioBuffer<float>& buffer,
+                           const juce::AudioBuffer<float>* sidechain)
     {
         const int numSamples = buffer.getNumSamples();
         if (numSamples <= 0) return;
@@ -295,7 +350,48 @@ namespace dsp
                 reverb.processMono (L, numSamples);
         }
 
-        // ---------- 6. EQ ----------
+        // ---------- 6. VINTAGE ----------
+        if (vintageOn && vintageAmount > 0.0f)
+        {
+            const float amt = vintageAmount;
+
+            const float effBits = 16.0f - amt * (16.0f - vintageBits);
+            const float effSr   = 1.0f  + amt * (vintageSr - 1.0f);
+            const float effNoise = amt * vintageNoise;
+
+            const float levels    = std::pow (2.0f, effBits);
+            const float invLevels = 1.0f / levels;
+            const float srStep    = 1.0f / juce::jmax (1.0f, effSr);
+            const float noiseAmt  = effNoise * 0.02f;
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                srCounter += srStep;
+                if (srCounter >= 1.0f)
+                {
+                    heldL = L[i];
+                    if (R) heldR = R[i];
+                    srCounter -= 1.0f;
+                }
+
+                float sL = heldL;
+                float sR = R ? heldR : 0.0f;
+
+                sL = std::round (sL * levels) * invLevels;
+                if (R) sR = std::round (sR * levels) * invLevels;
+
+                if (noiseAmt > 0.0f)
+                {
+                    sL += (vintageRng.nextFloat() * 2.0f - 1.0f) * noiseAmt;
+                    if (R) sR += (vintageRng.nextFloat() * 2.0f - 1.0f) * noiseAmt;
+                }
+
+                L[i] = sL;
+                if (R) R[i] = sR;
+            }
+        }
+
+        // ---------- 7. EQ ----------
         if (eqOn)
         {
             {
@@ -323,48 +419,81 @@ namespace dsp
             }
         }
 
-        // ---------- 7. FASE 8: VINTAGE (DAC emulation, al final) ----------
-        if (vintageOn && vintageAmount > 0.0f)
+        // ---------- 8. COMPRESSOR ----------
+        if (compOn)
         {
-            const float amt = vintageAmount;
+            computeCompCoeffs();
 
-            // Interpolación: 16 bits en amt=0, vintageBits en amt=1
-            const float effBits = 16.0f - amt * (16.0f - vintageBits);
-            const float effSr   = 1.0f  + amt * (vintageSr - 1.0f);
-            const float effNoise = amt * vintageNoise;
+            const float attackCoef  = compAttackCoef;
+            const float releaseCoef = compReleaseCoef;
+            const float makeupLin   = juce::Decibels::decibelsToGain (compMakeup);
+            const float threshold   = compThreshold;
+            const float ratio       = juce::jmax (1.0f, compRatio);
+            const float knee        = juce::jmax (0.0f, compKnee);
+            const float invRatio    = 1.0f / ratio;
+            const float scAmt       = compScAmount;
 
-            const float levels    = std::pow (2.0f, effBits);
-            const float invLevels = 1.0f / levels;
-            const float srStep    = 1.0f / juce::jmax (1.0f, effSr);
-            const float noiseAmt  = effNoise * 0.02f;
+            const bool useSc = compSidechain
+                            && sidechain != nullptr
+                            && sidechain->getNumChannels() > 0
+                            && sidechain->getNumSamples() >= numSamples;
+
+            const float* scL = useSc ? sidechain->getReadPointer (0) : nullptr;
+            const float* scR = (useSc && sidechain->getNumChannels() > 1)
+                                ? sidechain->getReadPointer (1) : nullptr;
 
             for (int i = 0; i < numSamples; ++i)
             {
-                // Sample & hold
-                srCounter += srStep;
-                if (srCounter >= 1.0f)
+                const float mainL = std::abs (L[i]);
+                const float mainR = R ? std::abs (R[i]) : mainL;
+                float detector = juce::jmax (mainL, mainR);
+
+                if (useSc)
                 {
-                    heldL = L[i];
-                    if (R) heldR = R[i];
-                    srCounter -= 1.0f;
+                    const float scAbsL = std::abs (scL[i]);
+                    const float scAbsR = (scR != nullptr) ? std::abs (scR[i]) : scAbsL;
+                    const float scDet  = juce::jmax (scAbsL, scAbsR);
+
+                    // Mezcla entre self y sidechain según scAmt.
+                    detector = detector * (1.0f - scAmt) + scDet * scAmt;
                 }
 
-                float sL = heldL;
-                float sR = R ? heldR : 0.0f;
+                // Envelope follower (attack/release)
+                if (detector > compEnvelope)
+                    compEnvelope = detector + attackCoef  * (compEnvelope - detector);
+                else
+                    compEnvelope = detector + releaseCoef * (compEnvelope - detector);
 
-                // Bit reduction (DAC emulation)
-                sL = std::round (sL * levels) * invLevels;
-                if (R) sR = std::round (sR * levels) * invLevels;
+                // Cálculo de reducción de ganancia en dB
+                const float envDb = juce::Decibels::gainToDecibels (compEnvelope, -100.0f);
+                float reductionDb = 0.0f;
 
-                // Digital noise
-                if (noiseAmt > 0.0f)
+                if (knee <= 0.0001f)
                 {
-                    sL += (vintageRng.nextFloat() * 2.0f - 1.0f) * noiseAmt;
-                    if (R) sR += (vintageRng.nextFloat() * 2.0f - 1.0f) * noiseAmt;
+                    if (envDb > threshold)
+                        reductionDb = (envDb - threshold) * (1.0f - invRatio);
+                }
+                else
+                {
+                    const float halfKnee = knee * 0.5f;
+                    const float overDb   = envDb - threshold;
+
+                    if (overDb > halfKnee)
+                    {
+                        reductionDb = overDb * (1.0f - invRatio);
+                    }
+                    else if (overDb > -halfKnee)
+                    {
+                        const float t = overDb + halfKnee;
+                        reductionDb = (1.0f - invRatio) * t * t / (2.0f * knee);
+                    }
                 }
 
-                L[i] = sL;
-                if (R) R[i] = sR;
+                const float gainDb  = -reductionDb + compMakeup;
+                const float gainLin = juce::Decibels::decibelsToGain (gainDb);
+
+                L[i] *= gainLin;
+                if (R) R[i] *= gainLin;
             }
         }
     }
