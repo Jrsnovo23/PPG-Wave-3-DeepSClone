@@ -175,7 +175,6 @@ private:
         float scale = 1.0f;
     };
 
-    // FASE 7: PresetDisplay ahora es clickable (abre el menú de presets).
     class PresetDisplay : public juce::Component
     {
     public:
@@ -203,7 +202,6 @@ private:
     void  onSavePreset();
     void  onBrowsePreset();
 
-    // FASE 7: nuevos métodos
     void  showPresetMenu();
     void  onToggleFavorite();
     void  onToggleFavoritesOnly();
@@ -220,8 +218,8 @@ private:
 
     // === Preset bar ===
     juce::TextButton prevBtn, nextBtn;
-    juce::TextButton favoriteBtn;       // FASE 7: ★ toggle favorite
-    juce::TextButton favoritesOnlyBtn;  // FASE 7: FAV (solo favoritos)
+    juce::TextButton favoriteBtn;
+    juce::TextButton favoritesOnlyBtn;
     juce::TextButton loadBtn, saveBtn, browseBtn;
     PresetDisplay    presetDisplay;
     std::unique_ptr<juce::FileChooser> fileChooser;
@@ -265,9 +263,11 @@ private:
     std::unique_ptr<ComboBoxSelector> mod3Src, mod3Dst;  HSlider mod3Amt;
     std::unique_ptr<ComboBoxSelector> mod4Src, mod4Dst;  HSlider mod4Amt;
 
-    // FX — pestañas
+    // ===== FX — 8 tabs (FASE 11 añade COMP) =====
+    // Orden visual: DIST | CHORUS | PHASER | DELAY | REVERB | VINTAGE | EQ | COMP
+    // Índices:      0       1        2        3       4        5         6    7
     juce::TextButton driveTabBtn, chorusTabBtn, phaserTabBtn;
-    juce::TextButton delayTabBtn, reverbTabBtn, eqTabBtn, vintageTabBtn;
+    juce::TextButton delayTabBtn, reverbTabBtn, vintageTabBtn, eqTabBtn, compTabBtn;
     int activeFxTab = 0;
 
     // FX — Drive
@@ -284,6 +284,11 @@ private:
     std::unique_ptr<ToggleButton> reverbOn;
     RotaryKnob reverbSize, reverbDamp, reverbMix;
 
+    // FX — Vintage
+    std::unique_ptr<ToggleButton> vintageOn;
+    RotaryKnob vintageAmount, vintageBits, vintageSr;
+    RotaryKnob vintageNoise, vintageDrift, vintageVar;
+
     // FX — EQ
     std::unique_ptr<ToggleButton> eqOn;
     std::unique_ptr<ToggleButton> eqHpOn, eqLpOn;
@@ -296,10 +301,11 @@ private:
     std::unique_ptr<ToggleButton> phaserOn;
     RotaryKnob phaserRate, phaserDepth, phaserFeedback, phaserMix;
 
-    // FX — Vintage
-    std::unique_ptr<ToggleButton> vintageOn;
-    RotaryKnob vintageAmount, vintageBits, vintageSr;
-    RotaryKnob vintageNoise, vintageDrift, vintageVar;
+    // FX — Compressor (FASE 11)
+    std::unique_ptr<ToggleButton> compOn;
+    std::unique_ptr<ToggleButton> compSidechain;
+    RotaryKnob compThreshold, compRatio, compAttack, compRelease;
+    RotaryKnob compKnee, compMakeup, compScAmount;
 
     juce::MidiKeyboardComponent keyboardComponent;
     juce::Slider pitchWheelSlider;
