@@ -31,20 +31,8 @@ void PPGWave3Processor::prepareToPlay (double sampleRate, int samplesPerBlock)
 bool PPGWave3Processor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     const auto& out = layouts.getMainOutputChannelSet();
-    if (out != juce::AudioChannelSet::stereo() &&
-        out != juce::AudioChannelSet::mono())
-        return false;
-
-    // El sidechain (si existe) debe ser estéreo o mono.
-    if (! layouts.inputBuses.isEmpty())
-    {
-        const auto& sc = layouts.inputBuses.getReference (0);
-        if (sc != juce::AudioChannelSet::stereo() &&
-            sc != juce::AudioChannelSet::mono() &&
-            sc != juce::AudioChannelSet::disabled())
-            return false;
-    }
-    return true;
+    return out == juce::AudioChannelSet::stereo()
+        || out == juce::AudioChannelSet::mono();
 }
 
 void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
