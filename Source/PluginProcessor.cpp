@@ -7,7 +7,9 @@
 
 PPGWave3Processor::PPGWave3Processor()
     : AudioProcessor (BusesProperties()
-                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+                        // FASE 11: bus de entrada opcional para el sidechain del compresor.
+                        .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), false)
+                        .withOutput ("Output",    juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "PARAMS", Params::createLayout())
 {
     for (int i = 0; i < 8; ++i)
@@ -29,15 +31,48 @@ void PPGWave3Processor::prepareToPlay (double sampleRate, int samplesPerBlock)
 bool PPGWave3Processor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     const auto& out = layouts.getMainOutputChannelSet();
-    return out == juce::AudioChannelSet::stereo()
-        || out == juce::AudioChannelSet::mono();
+    if (out != juce::AudioChannelSet::stereo() &&
+        out != juce::AudioChannelSet::mono())
+        return false;
+
+    // El sidechain (si existe) debe ser estéreo o mono.
+    if (layouts.getNumInputBuses() > 0)
+    {
+        const auto& sc = layouts.getChannelSet (true, 0);
+        if (sc != juce::AudioChannelSet::stereo() &&
+            sc != juce::AudioChannelSet::mono() &&
+            sc != juce::AudioChannelSet::disabled())
+            return false;
+    }
+    return true;
 }
 
 void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
-    buffer.clear();
 
+    // FASE 11: separar el bus de sidechain (input) del bus de salida.
+    // El buffer que recibimos contiene primero los canales del sidechain
+    // (si está activado) y luego los del output.
+    juce::AudioBuffer<float> sidechainBuffer;
+    juce::AudioBuffer<float> outputBuffer;
+
+    if (getTotalNumInputChannels() > 0 && buffer.getNumChannels() > 2)
+    {
+        auto sc = getBusBuffer (buffer, true, 0);
+        if (sc.getNumChannels() > 0)
+            sidechainBuffer = sc;   // copia de referencia (comparte datos)
+    }
+
+    if (getTotalNumInputChannels() > 0 && buffer.getNumChannels() > 2)
+        outputBuffer = getBusBuffer (buffer, false, 0);
+    else
+        outputBuffer = buffer;      // no hay sidechain, el buffer ES el output
+
+    // Limpiar SOLO el output (no el sidechain).
+    outputBuffer.clear();
+
+    // 1. BPM
     if (auto* ph = getPlayHead())
     {
         if (auto pos = ph->getPosition())
@@ -47,6 +82,7 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         }
     }
 
+    // 2. Reflejar notas DAW en el teclado virtual.
     for (const auto metadata : midi)
     {
         const auto msg = metadata.getMessage();
@@ -56,8 +92,10 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             keyboardState.noteOff (msg.getChannel(), msg.getNoteNumber(), msg.getFloatVelocity());
     }
 
-    keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
+    // 3. Inyectar notas del teclado virtual.
+    keyboardState.processNextMidiBuffer (midi, 0, outputBuffer.getNumSamples(), true);
 
+    // 4. Pitch Bend y Mod Wheel.
     {
         const int pbValue = juce::jlimit (0, 16383,
             (int) std::lround (8192.0f + pitchBendAtomic.load() * 8192.0f));
@@ -68,8 +106,10 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         midi.addEvent (juce::MidiMessage::controllerEvent (1, 1, mwValue), 0);
     }
 
-    synth.renderNextBlock (buffer, midi, 0, buffer.getNumSamples());
+    // 5. Sintetizador (sobre el buffer de salida).
+    synth.renderNextBlock (outputBuffer, midi, 0, outputBuffer.getNumSamples());
 
+    // 6. Leer parámetros.
     auto getF = [&] (const char* id, float def) -> float
     {
         if (auto* p = apvts.getRawParameterValue (id)) return p->load();
@@ -86,6 +126,7 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         return def;
     };
 
+    // 7. Configurar cadena de efectos.
     effects.setEQ (getB (ParamIDs::eqOn,   true),
                    getB (ParamIDs::eqHpOn, false),
                    getB (ParamIDs::eqLpOn, false),
@@ -147,19 +188,33 @@ void PPGWave3Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
                       getF (ParamIDs::driveTone, 0.5f),
                       getF (ParamIDs::driveMix, 0.5f));
 
-    // ===== FASE 8: Vintage =====
     effects.setVintage (getB (ParamIDs::vintageOn, false),
                         getF (ParamIDs::vintageAmount, 0.5f),
                         getF (ParamIDs::vintageBits,   12.0f),
                         getF (ParamIDs::vintageSr,     1.0f),
                         getF (ParamIDs::vintageNoise,  0.15f));
 
-    effects.process (buffer);
+    // FASE 11: Compressor (al final)
+    effects.setCompressor (getB (ParamIDs::compOn, false),
+                           getF (ParamIDs::compThreshold, -12.0f),
+                           getF (ParamIDs::compRatio,     4.0f),
+                           getF (ParamIDs::compAttack,    10.0f),
+                           getF (ParamIDs::compRelease,   100.0f),
+                           getF (ParamIDs::compKnee,      6.0f),
+                           getF (ParamIDs::compMakeup,    0.0f),
+                           getB (ParamIDs::compSidechain, false),
+                           getF (ParamIDs::compScAmount,  1.0f));
 
+    // 8. Procesar efectos (con sidechain si hay).
+    effects.process (outputBuffer,
+                     sidechainBuffer.getNumChannels() > 0 ? &sidechainBuffer : nullptr);
+
+    // 9. VU meter
     {
         float peak = 0.0f;
-        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-            peak = juce::jmax (peak, buffer.getMagnitude (ch, 0, buffer.getNumSamples()));
+        for (int ch = 0; ch < outputBuffer.getNumChannels(); ++ch)
+            peak = juce::jmax (peak,
+                               outputBuffer.getMagnitude (ch, 0, outputBuffer.getNumSamples()));
         peakLevel.store (peak);
     }
 }
