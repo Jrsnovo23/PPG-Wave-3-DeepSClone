@@ -759,6 +759,16 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
       vintageNoise  (p.apvts, ParamIDs::vintageNoise,  "NOISE",  &fxInfo),
       vintageDrift  (p.apvts, ParamIDs::vintageDrift,  "DRIFT",  &fxInfo),
       vintageVar    (p.apvts, ParamIDs::vintageVar,    "VAR",    &fxInfo),
+      // FASE 11: Compressor
+      compOn        (std::make_unique<ToggleButton> (p.apvts, ParamIDs::compOn, "COMP", &fxInfo)),
+      compSidechain (std::make_unique<ToggleButton> (p.apvts, ParamIDs::compSidechain, "SC", &fxInfo)),
+      compThreshold (p.apvts, ParamIDs::compThreshold, "THRSH",  &fxInfo),
+      compRatio     (p.apvts, ParamIDs::compRatio,     "RATIO",  &fxInfo),
+      compAttack    (p.apvts, ParamIDs::compAttack,    "ATTACK", &fxInfo),
+      compRelease   (p.apvts, ParamIDs::compRelease,   "RELSE",  &fxInfo),
+      compKnee      (p.apvts, ParamIDs::compKnee,      "KNEE",   &fxInfo),
+      compMakeup    (p.apvts, ParamIDs::compMakeup,    "MAKEUP", &fxInfo),
+      compScAmount  (p.apvts, ParamIDs::compScAmount,  "SC AMT", &fxInfo),
       keyboardComponent (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
     juce::ignoreUnused (processorRef, apvts);
@@ -789,15 +799,15 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     favoritesOnlyBtn.setColour (juce::TextButton::textColourOffId,  juce::Colour (0xff999999));
     favoritesOnlyBtn.setColour (juce::TextButton::textColourOnId,   juce::Colours::black);
 
-    // FASE 7: click sobre el nombre abre el menú de presets
     presetDisplay.onOpenMenu = [this]() { showPresetMenu(); };
 
     addAndMakeVisible (presetDisplay);
     updatePresetDisplay();
 
-    // === FX tab buttons (7) ===
+    // === FX tab buttons (8) ===
     for (auto* b : { &driveTabBtn, &chorusTabBtn, &phaserTabBtn,
-                     &delayTabBtn, &reverbTabBtn, &eqTabBtn, &vintageTabBtn })
+                     &delayTabBtn, &reverbTabBtn, &vintageTabBtn,
+                     &eqTabBtn, &compTabBtn })
     {
         b->setClickingTogglesState (false);
         b->setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff1c1c1c));
@@ -812,16 +822,20 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     phaserTabBtn .setButtonText ("PHASER");
     delayTabBtn  .setButtonText ("DELAY");
     reverbTabBtn .setButtonText ("REVERB");
-    eqTabBtn     .setButtonText ("EQ");
     vintageTabBtn.setButtonText ("VINTAGE");
+    eqTabBtn     .setButtonText ("EQ");
+    compTabBtn   .setButtonText ("COMP");
 
+    // Índices: 0=DIST, 1=CHORUS, 2=PHASER, 3=DELAY, 4=REVERB,
+    //          5=VINTAGE, 6=EQ, 7=COMP
     driveTabBtn  .onClick = [this]() { activeFxTab = 0; updateFxVisibility(); repaint(); };
     chorusTabBtn .onClick = [this]() { activeFxTab = 1; updateFxVisibility(); repaint(); };
     phaserTabBtn .onClick = [this]() { activeFxTab = 2; updateFxVisibility(); repaint(); };
     delayTabBtn  .onClick = [this]() { activeFxTab = 3; updateFxVisibility(); repaint(); };
     reverbTabBtn .onClick = [this]() { activeFxTab = 4; updateFxVisibility(); repaint(); };
-    eqTabBtn     .onClick = [this]() { activeFxTab = 5; updateFxVisibility(); repaint(); };
-    vintageTabBtn.onClick = [this]() { activeFxTab = 6; updateFxVisibility(); repaint(); };
+    vintageTabBtn.onClick = [this]() { activeFxTab = 5; updateFxVisibility(); repaint(); };
+    eqTabBtn     .onClick = [this]() { activeFxTab = 6; updateFxVisibility(); repaint(); };
+    compTabBtn   .onClick = [this]() { activeFxTab = 7; updateFxVisibility(); repaint(); };
 
     for (auto* b : { &env1TabBtn, &env2TabBtn, &env3TabBtn })
     {
@@ -957,6 +971,8 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
     addAndMakeVisible (*eqLpOn);
     addAndMakeVisible (*phaserOn);
     addAndMakeVisible (*vintageOn);
+    addAndMakeVisible (*compOn);
+    addAndMakeVisible (*compSidechain);
 
     addAndMakeVisible (eqFreqKnob);
     addAndMakeVisible (eqQKnob);
@@ -984,6 +1000,8 @@ PPGWave3Editor::PPGWave3Editor (PPGWave3Processor& p)
         &phaserRate, &phaserDepth, &phaserFeedback, &phaserMix,
         &vintageAmount, &vintageBits, &vintageSr,
         &vintageNoise, &vintageDrift, &vintageVar,
+        &compThreshold, &compRatio, &compAttack, &compRelease,
+        &compKnee, &compMakeup, &compScAmount,
         &mod1Amt, &mod2Amt, &mod3Amt, &mod4Amt
     };
     for (auto* c : allKnobs)
@@ -1020,7 +1038,7 @@ void PPGWave3Editor::setActiveEqBand (int band)
     eqHighBtn.setToggleState (activeEqBand == 3, juce::dontSendNotification);
 }
 
-// ==================== FASE 7: Menú de presets ====================
+// ==================== Menú de presets ====================
 
 void PPGWave3Editor::showPresetMenu()
 {
@@ -1029,13 +1047,12 @@ void PPGWave3Editor::showPresetMenu()
     const auto& allPresets = presetManager.getAllPresets();
     const int currentIdx = presetManager.getCurrentIndex();
 
-    // 1. Toggle "solo favoritos"
     menu.addItem (10000, "Mostrar solo favoritos",
                   true, presetManager.isFavoritesOnly());
 
     menu.addSeparator();
 
-    // 2. Submenú "★ Favoritos" (acceso rápido)
+    // Submenú "★ Favoritos"
     {
         juce::PopupMenu favMenu;
         int favCount = 0;
@@ -1059,7 +1076,6 @@ void PPGWave3Editor::showPresetMenu()
 
     menu.addSeparator();
 
-    // 3. Categorías normales
     juce::StringArray categories;
     for (const auto& p : allPresets)
         if (! categories.contains (p.category))
@@ -1086,11 +1102,9 @@ void PPGWave3Editor::showPresetMenu()
         menu.addSubMenu (cat, sub);
     }
 
-    // 4. Hint final
     menu.addSeparator();
     menu.addItem (-2, "Cmd+click = marcar/desmarcar \xe2\x98\x85", false, false);
 
-    // 5. Callback
     menu.showMenuAsync (juce::PopupMenu::Options().withMinimumWidth (260),
         [this] (int result)
         {
@@ -1102,13 +1116,12 @@ void PPGWave3Editor::showPresetMenu()
                 return;
             }
 
-            if (result < 0) return;   // hints / items deshabilitados
+            if (result < 0) return;
 
             const int presetIdx = result - 1;
             if (presetIdx < 0 || presetIdx >= presetManager.getAllPresets().size())
                 return;
 
-            // Detectar Cmd (Mac) / Ctrl (Win/Linux) pulsado
             const auto mods = juce::ModifierKeys::getCurrentModifiers();
             const bool toggleFav = mods.isCommandDown() || mods.isCtrlDown();
 
@@ -1119,7 +1132,6 @@ void PPGWave3Editor::showPresetMenu()
                 presetManager.toggleFavorite (name);
                 updatePresetDisplay();
 
-                // Reabrir el menú para que se vea el cambio reflejado.
                 juce::MessageManager::callAsync ([this]() { showPresetMenu(); });
                 return;
             }
@@ -1129,7 +1141,7 @@ void PPGWave3Editor::showPresetMenu()
         });
 }
 
-// ==================== FASE 7: Botones ★ y FAV ====================
+// ==================== Botones ★ y FAV ====================
 
 void PPGWave3Editor::onToggleFavorite()
 {
@@ -1138,7 +1150,6 @@ void PPGWave3Editor::onToggleFavorite()
 
     presetManager.toggleFavorite (name);
 
-    // Actualizar el estado del botón ★ (encendido si el actual es favorito).
     const bool isFav = presetManager.isFavorite (name);
     favoriteBtn.setToggleState (isFav, juce::dontSendNotification);
     favoriteBtn.setButtonText (isFav ? juce::String::fromUTF8 ("\xe2\x98\x85")
@@ -1156,14 +1167,16 @@ void PPGWave3Editor::onToggleFavoritesOnly()
 
 void PPGWave3Editor::updateFxVisibility()
 {
-    // 0=DIST, 1=CHORUS, 2=PHASER, 3=DELAY, 4=REVERB, 5=EQ, 6=VINTAGE
+    // 0=DIST, 1=CHORUS, 2=PHASER, 3=DELAY, 4=REVERB,
+    // 5=VINTAGE, 6=EQ, 7=COMP
     const bool d  = (activeFxTab == 0);
     const bool c  = (activeFxTab == 1);
     const bool ph = (activeFxTab == 2);
     const bool dl = (activeFxTab == 3);
     const bool r  = (activeFxTab == 4);
-    const bool eq = (activeFxTab == 5);
-    const bool vi = (activeFxTab == 6);
+    const bool vi = (activeFxTab == 5);
+    const bool eq = (activeFxTab == 6);
+    const bool cp = (activeFxTab == 7);
 
     driveOn    ->setVisible (d);
     driveAmount.setVisible (d);
@@ -1192,6 +1205,14 @@ void PPGWave3Editor::updateFxVisibility()
     reverbDamp .setVisible (r);
     reverbMix  .setVisible (r);
 
+    vintageOn    ->setVisible (vi);
+    vintageAmount.setVisible (vi);
+    vintageBits  .setVisible (vi);
+    vintageSr    .setVisible (vi);
+    vintageNoise .setVisible (vi);
+    vintageDrift .setVisible (vi);
+    vintageVar   .setVisible (vi);
+
     eqOn   ->setVisible (eq);
     eqHpOn ->setVisible (eq);
     eqLpOn ->setVisible (eq);
@@ -1204,21 +1225,25 @@ void PPGWave3Editor::updateFxVisibility()
     eqGainKnob.setVisible (eq);
     eqCurveDisplay.setVisible (eq);
 
-    vintageOn    ->setVisible (vi);
-    vintageAmount.setVisible (vi);
-    vintageBits  .setVisible (vi);
-    vintageSr    .setVisible (vi);
-    vintageNoise .setVisible (vi);
-    vintageDrift .setVisible (vi);
-    vintageVar   .setVisible (vi);
+    // FASE 11: Compressor
+    compOn       ->setVisible (cp);
+    compSidechain->setVisible (cp);
+    compThreshold.setVisible (cp);
+    compRatio    .setVisible (cp);
+    compAttack   .setVisible (cp);
+    compRelease  .setVisible (cp);
+    compKnee     .setVisible (cp);
+    compMakeup   .setVisible (cp);
+    compScAmount .setVisible (cp);
 
     driveTabBtn  .setToggleState (d,  juce::dontSendNotification);
     chorusTabBtn .setToggleState (c,  juce::dontSendNotification);
     phaserTabBtn .setToggleState (ph, juce::dontSendNotification);
     delayTabBtn  .setToggleState (dl, juce::dontSendNotification);
     reverbTabBtn .setToggleState (r,  juce::dontSendNotification);
-    eqTabBtn     .setToggleState (eq, juce::dontSendNotification);
     vintageTabBtn.setToggleState (vi, juce::dontSendNotification);
+    eqTabBtn     .setToggleState (eq, juce::dontSendNotification);
+    compTabBtn   .setToggleState (cp, juce::dontSendNotification);
 }
 
 // ==================== Env Tab visibility ====================
@@ -1264,14 +1289,12 @@ void PPGWave3Editor::updatePresetDisplay()
                                presetManager.getCurrentCategory(), true);
     }
 
-    // FASE 7: actualizar el botón ★ según el preset actual.
     const auto name = presetManager.getCurrentName();
     const bool isFav = presetManager.isFavorite (name);
     favoriteBtn.setToggleState (isFav, juce::dontSendNotification);
     favoriteBtn.setButtonText (isFav ? juce::String::fromUTF8 ("\xe2\x98\x85")
                                      : juce::String ("*"));
 
-    // FASE 7: actualizar el botón FAV según el modo.
     favoritesOnlyBtn.setToggleState (presetManager.isFavoritesOnly(),
                                      juce::dontSendNotification);
 }
@@ -1290,14 +1313,10 @@ void PPGWave3Editor::onNextPreset()
 
 void PPGWave3Editor::onLoadPreset()
 {
-    // Guardamos el nombre del preset actual ANTES de refrescar.
     const auto currentName = presetManager.getCurrentName();
 
-    // Refrescar la lista (por si hay nuevos user presets en disco).
     presetManager.refresh();
 
-    // Buscar el mismo preset por nombre (no por índice, porque el
-    // orden puede cambiar al añadir/quitar user presets).
     const auto& all = presetManager.getAllPresets();
     for (int i = 0; i < all.size(); ++i)
     {
@@ -1390,7 +1409,9 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
                      &reverbSize, &reverbDamp, &reverbMix,
                      &phaserRate, &phaserDepth, &phaserFeedback, &phaserMix,
                      &vintageAmount, &vintageBits, &vintageSr,
-                     &vintageNoise, &vintageDrift, &vintageVar })
+                     &vintageNoise, &vintageDrift, &vintageVar,
+                     &compThreshold, &compRatio, &compAttack, &compRelease,
+                     &compKnee, &compMakeup, &compScAmount })
         k->setScale (scaleValue);
 
     eqFreqKnob.setScale (scaleValue);
@@ -1418,15 +1439,17 @@ void PPGWave3Editor::applyScaleToAll (float scaleValue)
     mod3Src->setScale (scaleValue);  mod3Dst->setScale (scaleValue);
     mod4Src->setScale (scaleValue);  mod4Dst->setScale (scaleValue);
 
-    driveOn   ->setScale (scaleValue);
-    chorusOn  ->setScale (scaleValue);
-    delayOn   ->setScale (scaleValue);
-    reverbOn  ->setScale (scaleValue);
-    eqOn      ->setScale (scaleValue);
-    eqHpOn    ->setScale (scaleValue);
-    eqLpOn    ->setScale (scaleValue);
-    phaserOn  ->setScale (scaleValue);
-    vintageOn ->setScale (scaleValue);
+    driveOn     ->setScale (scaleValue);
+    chorusOn    ->setScale (scaleValue);
+    delayOn     ->setScale (scaleValue);
+    reverbOn    ->setScale (scaleValue);
+    eqOn        ->setScale (scaleValue);
+    eqHpOn      ->setScale (scaleValue);
+    eqLpOn      ->setScale (scaleValue);
+    phaserOn    ->setScale (scaleValue);
+    vintageOn   ->setScale (scaleValue);
+    compOn      ->setScale (scaleValue);
+    compSidechain->setScale (scaleValue);
 
     pitchWheelLabel.setFont (juce::FontOptions (juce::jmax (7.0f, 9.0f * scaleValue),
                                                 juce::Font::bold));
@@ -1563,8 +1586,6 @@ void PPGWave3Editor::resized()
     auto header = r.removeFromTop (72);
     auto presetRow = header.removeFromBottom (36).reduced (10, 4);
 
-    // FASE 7: la barra ahora es [<] [>] [*] [FAV] ......... [LOAD] [SAVE] [BROWSE]
-    // El nombre del preset ocupa todo el espacio del medio.
     const int navW   = 28;
     const int starW  = 30;
     const int favW   = 46;
@@ -1589,7 +1610,6 @@ void PPGWave3Editor::resized()
 
     presetDisplay.setBounds (presetRow);
 
-    // ===== Tira inferior: teclado + ruedas =====
     auto keyboardStrip = r.removeFromBottom (92);
     keyboardArea = keyboardStrip;
 
@@ -1611,7 +1631,6 @@ void PPGWave3Editor::resized()
     keyboardStrip.removeFromLeft (12);
     keyboardComponent.setBounds (keyboardStrip);
 
-    // ===== Resto del layout =====
     r.reduce (6, 6);
 
     const int h      = r.getHeight();
@@ -1760,15 +1779,17 @@ void PPGWave3Editor::resized()
         juce::Rectangle<int> inner;
         titleRowFor (fxArea, fxInfo, inner);
 
+        // 8 pestañas
         auto tabRow = inner.removeFromTop (24);
-        const int tabW = tabRow.getWidth() / 7;
+        const int tabW = tabRow.getWidth() / 8;
         driveTabBtn  .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
         chorusTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
         phaserTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
         delayTabBtn  .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
         reverbTabBtn .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
+        vintageTabBtn.setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
         eqTabBtn     .setBounds (tabRow.removeFromLeft (tabW).reduced (1, 0));
-        vintageTabBtn.setBounds (tabRow.reduced (1, 0));
+        compTabBtn   .setBounds (tabRow.reduced (1, 0));
 
         inner.removeFromTop (6);
 
@@ -1824,6 +1845,34 @@ void PPGWave3Editor::resized()
 
         { auto area = controlsArea; layoutFullRow (area, *reverbOn, reverbSize, reverbDamp, reverbMix); }
 
+        // Vintage
+        {
+            auto area = controlsArea;
+
+            const int toggleW = 110;
+            auto toggleCol = area.removeFromLeft (toggleW);
+            vintageOn->setBounds (toggleCol.withSizeKeepingCentre (
+                toggleCol.getWidth() - 12, 40));
+
+            area.removeFromLeft (24);
+
+            const int rowGap = 6;
+            const int rowH = (area.getHeight() - rowGap) / 2;
+            auto topKnobRow = area.removeFromTop (rowH);
+            area.removeFromTop (rowGap);
+            auto botKnobRow = area;
+
+            const int kwTop = topKnobRow.getWidth() / 3;
+            vintageAmount.setBounds (topKnobRow.removeFromLeft (kwTop).reduced (6, 0));
+            vintageBits  .setBounds (topKnobRow.removeFromLeft (kwTop).reduced (6, 0));
+            vintageSr    .setBounds (topKnobRow.reduced (6, 0));
+
+            const int kwBot = botKnobRow.getWidth() / 3;
+            vintageNoise .setBounds (botKnobRow.removeFromLeft (kwBot).reduced (6, 0));
+            vintageDrift .setBounds (botKnobRow.removeFromLeft (kwBot).reduced (6, 0));
+            vintageVar   .setBounds (botKnobRow.reduced (6, 0));
+        }
+
         // EQ
         {
             auto area = controlsArea;
@@ -1863,32 +1912,37 @@ void PPGWave3Editor::resized()
             eqGainKnob.setBounds (knobZone.reduced (4, 0));
         }
 
-        // Vintage
+        // Compressor (FASE 11)
         {
             auto area = controlsArea;
 
-            const int toggleW = 110;
-            auto toggleCol = area.removeFromLeft (toggleW);
-            vintageOn->setBounds (toggleCol.withSizeKeepingCentre (
-                toggleCol.getWidth() - 12, 40));
+            // Columna izquierda: COMP ON + SC toggle
+            const int toggleColW = 110;
+            auto toggleCol = area.removeFromLeft (toggleColW);
+            const int halfToggleH = toggleCol.getHeight() / 2;
+            compOn->setBounds (toggleCol.removeFromTop (halfToggleH).reduced (0, 2));
+            compSidechain->setBounds (toggleCol.reduced (0, 2));
 
             area.removeFromLeft (24);
 
+            // Fila superior: THRSH, RATIO, ATTACK, RELEASE
+            // Fila inferior: KNEE, MAKEUP, SC AMT
             const int rowGap = 6;
             const int rowH = (area.getHeight() - rowGap) / 2;
             auto topKnobRow = area.removeFromTop (rowH);
             area.removeFromTop (rowGap);
             auto botKnobRow = area;
 
-            const int kwTop = topKnobRow.getWidth() / 3;
-            vintageAmount.setBounds (topKnobRow.removeFromLeft (kwTop).reduced (6, 0));
-            vintageBits  .setBounds (topKnobRow.removeFromLeft (kwTop).reduced (6, 0));
-            vintageSr    .setBounds (topKnobRow.reduced (6, 0));
+            const int kwTop = topKnobRow.getWidth() / 4;
+            compThreshold.setBounds (topKnobRow.removeFromLeft (kwTop).reduced (4, 0));
+            compRatio    .setBounds (topKnobRow.removeFromLeft (kwTop).reduced (4, 0));
+            compAttack   .setBounds (topKnobRow.removeFromLeft (kwTop).reduced (4, 0));
+            compRelease  .setBounds (topKnobRow.reduced (4, 0));
 
             const int kwBot = botKnobRow.getWidth() / 3;
-            vintageNoise .setBounds (botKnobRow.removeFromLeft (kwBot).reduced (6, 0));
-            vintageDrift .setBounds (botKnobRow.removeFromLeft (kwBot).reduced (6, 0));
-            vintageVar   .setBounds (botKnobRow.reduced (6, 0));
+            compKnee     .setBounds (botKnobRow.removeFromLeft (kwBot).reduced (4, 0));
+            compMakeup   .setBounds (botKnobRow.removeFromLeft (kwBot).reduced (4, 0));
+            compScAmount .setBounds (botKnobRow.reduced (4, 0));
         }
     }
 
