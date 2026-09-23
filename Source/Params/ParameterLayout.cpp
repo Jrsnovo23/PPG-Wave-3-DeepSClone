@@ -66,7 +66,7 @@ namespace Params
             "Filter Cutoff", "Amplifier", "Filter Reso", "OSC2 Fine", "OSC1 Fine"
         };
 
-        // ============ Oscilador 1 ============
+        // ============ Osciladores ============
         makeChoice (ParamIDs::osc1Wave,   "Osc1 Wave",   waveChoices,   0);
         makeFloat  (ParamIDs::osc1Pos,    "Osc1 Pos",    0.0f, 1.0f, 0.0f);
         makeChoice (ParamIDs::osc1Octave, "Osc1 Octave", octaveChoices, 2);
@@ -74,7 +74,6 @@ namespace Params
         makeFloat  (ParamIDs::osc1Fine,   "Osc1 Fine", -100.0f, 100.0f, 0.0f, "ct");
         makeFloat  (ParamIDs::osc1Level,  "Osc1 Level",  0.0f, 1.0f, 0.8f);
 
-        // ============ Oscilador 2 ============
         makeChoice (ParamIDs::osc2Wave,   "Osc2 Wave",   waveChoices,   2);
         makeFloat  (ParamIDs::osc2Pos,    "Osc2 Pos",    0.0f, 1.0f, 0.0f);
         makeChoice (ParamIDs::osc2Octave, "Osc2 Octave", octaveChoices, 2);
@@ -82,11 +81,21 @@ namespace Params
         makeFloat  (ParamIDs::osc2Fine,   "Osc2 Fine", -100.0f, 100.0f, 0.0f, "ct");
         makeFloat  (ParamIDs::osc2Level,  "Osc2 Level",  0.0f, 1.0f, 0.0f);
 
-        // ============ Amp Envelope (ENV1) ============
+        // ============ Envelopes ============
         makeFloat (ParamIDs::ampAttack,  "Amp Attack",  0.001f, 5.0f, 0.005f, "s");
         makeFloat (ParamIDs::ampDecay,   "Amp Decay",   0.001f, 5.0f, 0.100f, "s");
         makeFloat (ParamIDs::ampSustain, "Amp Sustain", 0.0f,   1.0f, 0.700f);
         makeFloat (ParamIDs::ampRelease, "Amp Release", 0.001f, 10.0f, 0.300f, "s");
+
+        makeFloat (ParamIDs::filtAttack,  "Filt Attack",  0.001f, 5.0f, 0.005f, "s");
+        makeFloat (ParamIDs::filtDecay,   "Filt Decay",   0.001f, 5.0f, 0.200f, "s");
+        makeFloat (ParamIDs::filtSustain, "Filt Sustain", 0.0f,   1.0f, 0.500f);
+        makeFloat (ParamIDs::filtRelease, "Filt Release", 0.001f, 10.0f, 0.300f, "s");
+
+        makeFloat (ParamIDs::env3Attack,  "Env3 Attack",  0.001f, 5.0f, 0.005f, "s");
+        makeFloat (ParamIDs::env3Decay,   "Env3 Decay",   0.001f, 5.0f, 0.200f, "s");
+        makeFloat (ParamIDs::env3Sustain, "Env3 Sustain", 0.0f,   1.0f, 0.500f);
+        makeFloat (ParamIDs::env3Release, "Env3 Release", 0.001f, 10.0f, 0.300f, "s");
 
         // ============ Filtro ============
         makeChoice   (ParamIDs::filterType,     "Filter Type",     filterTypes, 0);
@@ -94,18 +103,6 @@ namespace Params
         makeFloat    (ParamIDs::filterReso,     "Filter Reso",     0.0f, 1.0f, 0.0f);
         makeFloat    (ParamIDs::filterEnvAmt,   "Filter Env Amt", -1.0f, 1.0f, 0.0f);
         makeFloat    (ParamIDs::filterKeyTrack, "Filter Key Track", 0.0f, 1.0f, 0.0f);
-
-        // ============ Filter Envelope (ENV2) ============
-        makeFloat (ParamIDs::filtAttack,  "Filt Attack",  0.001f, 5.0f, 0.005f, "s");
-        makeFloat (ParamIDs::filtDecay,   "Filt Decay",   0.001f, 5.0f, 0.200f, "s");
-        makeFloat (ParamIDs::filtSustain, "Filt Sustain", 0.0f,   1.0f, 0.500f);
-        makeFloat (ParamIDs::filtRelease, "Filt Release", 0.001f, 10.0f, 0.300f, "s");
-
-        // ============ Envelope 3 (libre) ============
-        makeFloat (ParamIDs::env3Attack,  "Env3 Attack",  0.001f, 5.0f, 0.005f, "s");
-        makeFloat (ParamIDs::env3Decay,   "Env3 Decay",   0.001f, 5.0f, 0.200f, "s");
-        makeFloat (ParamIDs::env3Sustain, "Env3 Sustain", 0.0f,   1.0f, 0.500f);
-        makeFloat (ParamIDs::env3Release, "Env3 Release", 0.001f, 10.0f, 0.300f, "s");
 
         // ============ Master ============
         makeFloat (ParamIDs::masterGain, "Master", 0.0f, 1.0f, 0.7f);
@@ -159,7 +156,7 @@ namespace Params
         makeFloat (ParamIDs::reverbDamp, "Reverb Damp", 0.0f, 1.0f, 0.5f);
         makeFloat (ParamIDs::reverbMix,  "Reverb Mix",  0.0f, 1.0f, 0.3f);
 
-        // ============ EQ 4 bandas ============
+        // ============ EQ ============
         makeBool (ParamIDs::eqOn,   "EQ On",    true);
         makeBool (ParamIDs::eqHpOn, "EQ HP On", false);
         makeBool (ParamIDs::eqLpOn, "EQ LP On", false);
@@ -187,7 +184,7 @@ namespace Params
         makeFloat (ParamIDs::phaserFeedback, "Phaser Feedbk",   0.0f,  0.95f, 0.5f);
         makeFloat (ParamIDs::phaserMix,      "Phaser Mix",      0.0f,  1.0f, 0.5f);
 
-        // ============ FASE 8: Vintage Character ============
+        // ============ Vintage ============
         makeBool  (ParamIDs::vintageOn,     "Vintage On",     false);
         makeFloat (ParamIDs::vintageAmount, "Vintage Amount", 0.0f, 1.0f, 0.5f);
         makeFloat (ParamIDs::vintageBits,   "Vintage Bits",   4.0f, 16.0f, 12.0f, "bit");
@@ -195,6 +192,17 @@ namespace Params
         makeFloat (ParamIDs::vintageNoise,  "Vintage Noise",  0.0f, 1.0f, 0.15f);
         makeFloat (ParamIDs::vintageDrift,  "Vintage Drift",  0.0f, 1.0f, 0.3f);
         makeFloat (ParamIDs::vintageVar,    "Vintage Var",    0.0f, 1.0f, 0.3f);
+
+        // ============ FASE 11: Compresor ============
+        makeBool     (ParamIDs::compOn,        "Comp On",       false);
+        makeFloat    (ParamIDs::compThreshold, "Comp Threshold", -60.0f, 0.0f, -12.0f, "dB");
+        makeFloat    (ParamIDs::compRatio,     "Comp Ratio",     1.0f, 20.0f, 4.0f, ":1");
+        makeFloatLog (ParamIDs::compAttack,    "Comp Attack",    0.1f, 100.0f, 10.0f, "ms");
+        makeFloatLog (ParamIDs::compRelease,   "Comp Release",   10.0f, 1000.0f, 100.0f, "ms");
+        makeFloat    (ParamIDs::compKnee,      "Comp Knee",      0.0f, 24.0f, 6.0f, "dB");
+        makeFloat    (ParamIDs::compMakeup,    "Comp Makeup",    0.0f, 24.0f, 0.0f, "dB");
+        makeBool     (ParamIDs::compSidechain, "Comp Sidechain", false);
+        makeFloat    (ParamIDs::compScAmount,  "Comp SC Amount", 0.0f, 1.0f, 1.0f);
 
         return { params.begin(), params.end() };
     }
