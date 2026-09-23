@@ -1029,53 +1029,46 @@ void PPGWave3Editor::showPresetMenu()
     const auto& allPresets = presetManager.getAllPresets();
     const int currentIdx = presetManager.getCurrentIndex();
 
-    // Recorremos todas las categorías en el orden en que aparecen.
+    // 1. Toggle "solo favoritos"
+    menu.addItem (10000, "Mostrar solo favoritos",
+                  true, presetManager.isFavoritesOnly());
+
+    menu.addSeparator();
+
+    // 2. Submenú "★ Favoritos" (acceso rápido)
+    {
+        juce::PopupMenu favMenu;
+        int favCount = 0;
+        for (int i = 0; i < allPresets.size(); ++i)
+        {
+            const auto& p = allPresets.getReference (i);
+            if (! presetManager.isFavorite (p.name)) continue;
+
+            const bool isCur = (i == currentIdx);
+            favMenu.addItem (i + 1, "  " + p.name, true, isCur);
+            ++favCount;
+        }
+
+        if (favCount == 0)
+            favMenu.addItem (-1, "(sin favoritos)", false, false);
+
+        menu.addSubMenu (juce::String::fromUTF8 ("\xe2\x98\x85 Favoritos (")
+                            + juce::String (favCount) + ")",
+                         favMenu, favCount > 0);
+    }
+
+    menu.addSeparator();
+
+    // 3. Categorías normales
     juce::StringArray categories;
     for (const auto& p : allPresets)
         if (! categories.contains (p.category))
             categories.add (p.category);
 
-    // Ítem "solo favoritos" arriba.
-    menu.addItem (10000, "Mostrar solo favoritos",
-                  true, presetManager.isFavoritesOnly());
-    menu.addSeparator();
-
-    int itemId = 1;
-
     for (const auto& cat : categories)
     {
         juce::PopupMenu sub;
 
-        for (int i = 0; i < allPresets.size(); ++i)
-        {
-            const auto& p = allPresets.getReference (i);
-            if (p.category != cat) continue;
-
-            const bool fav   = presetManager.isFavorite (p.name);
-            const bool isCur = (i == currentIdx);
-
-            // El nombre del ítem: ★ + nombre (con tick si es el actual).
-            const juce::String prefix = fav ? juce::String::fromUTF8 ("\xe2\x98\x85  ")
-                                             : juce::String ("   ");
-            const juce::String label  = prefix + p.name;
-
-            sub.addItem (itemId, label, true, isCur);
-
-            // Guardamos el id numérico -> índice del preset para recuperarlo.
-            // Usamos un enfoque simple: codificamos índice y favorito en un int:
-            // id = 1000 + i*2 + (fav ? 1 : 0).  id 1..999 reservados para categorías.
-            // Pero PopupMenu necesita ids únicos en TODO el menú, así que mejor
-            // usar un solo rango de ids y reconstruir la info al mostrar.
-            // Solución: usamos id = i+1 y guardamos la relación por índice.
-            //
-            // Nota: JUCE permite el mismo id repetido en submenús distintos pero
-            // puede dar problemas.  Para simplificar, reescribimos aquí el id.
-            juce::ignoreUnused (label, fav);
-            ++itemId;
-        }
-
-        // Reconstruimos el submenú con ids correctos.
-        sub.clear();
         for (int i = 0; i < allPresets.size(); ++i)
         {
             const auto& p = allPresets.getReference (i);
@@ -1093,20 +1086,44 @@ void PPGWave3Editor::showPresetMenu()
         menu.addSubMenu (cat, sub);
     }
 
-    // Callback: procesa la selección.
-    menu.showMenuAsync (juce::PopupMenu::Options().withMinimumWidth (240),
+    // 4. Hint final
+    menu.addSeparator();
+    menu.addItem (-2, "Cmd+click = marcar/desmarcar \xe2\x98\x85", false, false);
+
+    // 5. Callback
+    menu.showMenuAsync (juce::PopupMenu::Options().withMinimumWidth (260),
         [this] (int result)
         {
             if (result == 0) return;
 
             if (result == 10000)
             {
-                // Toggle solo favoritos
                 onToggleFavoritesOnly();
                 return;
             }
 
+            if (result < 0) return;   // hints / items deshabilitados
+
             const int presetIdx = result - 1;
+            if (presetIdx < 0 || presetIdx >= presetManager.getAllPresets().size())
+                return;
+
+            // Detectar Cmd (Mac) / Ctrl (Win/Linux) pulsado
+            const auto mods = juce::ModifierKeys::getCurrentModifiers();
+            const bool toggleFav = mods.isCommandDown() || mods.isCtrlDown();
+
+            if (toggleFav)
+            {
+                const auto name = presetManager.getAllPresets()
+                                      .getReference (presetIdx).name;
+                presetManager.toggleFavorite (name);
+                updatePresetDisplay();
+
+                // Reabrir el menú para que se vea el cambio reflejado.
+                juce::MessageManager::callAsync ([this]() { showPresetMenu(); });
+                return;
+            }
+
             presetManager.loadByIndex (presetIdx);
             updatePresetDisplay();
         });
@@ -1273,8 +1290,24 @@ void PPGWave3Editor::onNextPreset()
 
 void PPGWave3Editor::onLoadPreset()
 {
+    // Guardamos el nombre del preset actual ANTES de refrescar.
+    const auto currentName = presetManager.getCurrentName();
+
+    // Refrescar la lista (por si hay nuevos user presets en disco).
     presetManager.refresh();
-    presetManager.loadByIndex (presetManager.getCurrentIndex());
+
+    // Buscar el mismo preset por nombre (no por índice, porque el
+    // orden puede cambiar al añadir/quitar user presets).
+    const auto& all = presetManager.getAllPresets();
+    for (int i = 0; i < all.size(); ++i)
+    {
+        if (all.getReference (i).name == currentName)
+        {
+            presetManager.loadByIndex (i);
+            break;
+        }
+    }
+
     updatePresetDisplay();
 }
 
