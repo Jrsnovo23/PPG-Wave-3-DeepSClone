@@ -3,14 +3,18 @@
 
 namespace dsp
 {
-    // Cadena de efectos globales aplicada post-mix.
-    // Orden: Drive -> Chorus -> Phaser -> Delay -> Reverb -> EQ -> Vintage (DAC).
+    // Cadena global post-mix:
+    //   Drive -> Chorus -> Phaser -> Delay -> Reverb -> Vintage -> EQ -> Compressor
     class Effects
     {
     public:
         void prepare (double sampleRate, int maxBlockSize, int numChannels);
         void reset();
-        void process (juce::AudioBuffer<float>& buffer);
+
+        // FASE 11: process() acepta un sidechain opcional (bus de entrada).
+        // Si es nullptr o vacío, el compresor cae a self-sidechain.
+        void process (juce::AudioBuffer<float>& buffer,
+                      const juce::AudioBuffer<float>* sidechain = nullptr);
 
         void setChorus (bool on, float rate, float depth, float mix);
         void setDelay  (bool on, float timeSec, float feedback, float mix);
@@ -25,10 +29,16 @@ namespace dsp
                         float highFreq, float highQ, float highGain);
         void setPhaser (bool on, float rate, float depth, float feedback, float mix);
 
-        // ===== FASE 8 =====
         void setVintage (bool on, float amount,
                          float bits, float srFactor,
                          float noise);
+
+        // FASE 11
+        void setCompressor (bool on,
+                            float thresholdDb, float ratio,
+                            float attackMs, float releaseMs,
+                            float kneeDb, float makeupDb,
+                            bool sidechainOn, float scAmount);
 
     private:
         double sr       = 44100.0;
@@ -86,18 +96,38 @@ namespace dsp
         bool  phaserOn     = false;
         juce::dsp::Phaser<float> phaser;
 
-        // ---- FASE 8: Vintage Character ----
+        // ---- Vintage ----
         bool  vintageOn     = false;
         float vintageAmount = 0.5f;
         float vintageBits   = 12.0f;
         float vintageSr     = 1.0f;
         float vintageNoise  = 0.15f;
 
-        // Estado del sample & hold
         float heldL    = 0.0f;
         float heldR    = 0.0f;
         float srCounter = 1.0f;
 
         juce::Random vintageRng;
+
+        // ---- FASE 11: Compressor ----
+        bool  compOn         = false;
+        float compThreshold  = -12.0f;
+        float compRatio      = 4.0f;
+        float compAttack     = 10.0f;
+        float compRelease    = 100.0f;
+        float compKnee       = 6.0f;
+        float compMakeup     = 0.0f;
+        bool  compSidechain  = false;
+        float compScAmount   = 1.0f;
+
+        // Envelope follower state
+        float  compEnvelope     = 0.0f;
+        float  compAttackCoef   = 0.0f;
+        float  compReleaseCoef  = 0.0f;
+        float  compLastAttack   = -1.0f;
+        float  compLastRelease  = -1.0f;
+        double compLastSr       = -1.0;
+
+        void computeCompCoeffs();
     };
 }
