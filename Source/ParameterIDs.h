@@ -61,7 +61,7 @@ namespace ParamIDs
     inline constexpr auto lfo2Phase = "lfo2_phase";
     inline constexpr auto lfo2Sync  = "lfo2_sync";
 
-    // --- Matriz de Modulación (4 slots) ---
+    // --- Matriz de Modulación ---
     inline constexpr auto mod1Source = "mod1_source";
     inline constexpr auto mod1Dest   = "mod1_dest";
     inline constexpr auto mod1Amount = "mod1_amount";
@@ -78,7 +78,7 @@ namespace ParamIDs
     inline constexpr auto mod4Dest   = "mod4_dest";
     inline constexpr auto mod4Amount = "mod4_amount";
 
-    // ============ FASE 5: EFECTOS ============
+    // ============ EFECTOS ============
     inline constexpr auto driveOn     = "drive_on";
     inline constexpr auto driveAmount = "drive_amount";
     inline constexpr auto driveTone   = "drive_tone";
@@ -100,7 +100,7 @@ namespace ParamIDs
     inline constexpr auto reverbDamp  = "reverb_damp";
     inline constexpr auto reverbMix   = "reverb_mix";
 
-    // ============ FASE 6.7: EQ 4 BANDAS ============
+    // ============ EQ 4 BANDAS ============
     inline constexpr auto eqOn   = "eq_on";
     inline constexpr auto eqHpOn = "eq_hp_on";
     inline constexpr auto eqLpOn = "eq_lp_on";
@@ -121,14 +121,14 @@ namespace ParamIDs
     inline constexpr auto eqHighQ    = "eq_high_q";
     inline constexpr auto eqHighGain = "eq_high_gain";
 
-    // ============ FASE 6.7: PHASER ============
+    // ============ PHASER ============
     inline constexpr auto phaserOn       = "phaser_on";
     inline constexpr auto phaserRate     = "phaser_rate";
     inline constexpr auto phaserDepth    = "phaser_depth";
     inline constexpr auto phaserFeedback = "phaser_feedback";
     inline constexpr auto phaserMix      = "phaser_mix";
 
-    // ============ FASE 8: VINTAGE CHARACTER ============
+    // ============ VINTAGE CHARACTER ============
     inline constexpr auto vintageOn     = "vintage_on";
     inline constexpr auto vintageAmount = "vintage_amount";
     inline constexpr auto vintageBits   = "vintage_bits";
@@ -136,4 +136,15 @@ namespace ParamIDs
     inline constexpr auto vintageNoise  = "vintage_noise";
     inline constexpr auto vintageDrift  = "vintage_drift";
     inline constexpr auto vintageVar    = "vintage_var";
+
+    // ============ FASE 11: COMPRESOR ============
+    inline constexpr auto compOn        = "comp_on";
+    inline constexpr auto compThreshold = "comp_threshold";
+    inline constexpr auto compRatio     = "comp_ratio";
+    inline constexpr auto compAttack    = "comp_attack";
+    inline constexpr auto compRelease   = "comp_release";
+    inline constexpr auto compKnee      = "comp_knee";
+    inline constexpr auto compMakeup    = "comp_makeup";
+    inline constexpr auto compSidechain = "comp_sidechain";
+    inline constexpr auto compScAmount  = "comp_sc_amount";
 }
