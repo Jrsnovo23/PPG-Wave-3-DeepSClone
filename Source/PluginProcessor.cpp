@@ -36,9 +36,9 @@ bool PPGWave3Processor::isBusesLayoutSupported (const BusesLayout& layouts) cons
         return false;
 
     // El sidechain (si existe) debe ser estéreo o mono.
-    if (layouts.getNumInputBuses() > 0)
+    if (! layouts.inputBuses.isEmpty())
     {
-        const auto& sc = layouts.getChannelSet (true, 0);
+        const auto& sc = layouts.inputBuses.getReference (0);
         if (sc != juce::AudioChannelSet::stereo() &&
             sc != juce::AudioChannelSet::mono() &&
             sc != juce::AudioChannelSet::disabled())
